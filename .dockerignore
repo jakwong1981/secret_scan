@@ -1,0 +1,24 @@
+**/node_modules
+**/dist
+**/.pnpm-store
+.git
+.github
+.idea
+.vscode
+coverage
+
+# never bake secrets or local data into the image
+.env
+.env.*
+secrets
+data
+certs
+
+# docs are read by humans, not the builder
+*.md
+!README.md
+
+# macOS / test noise
+.DS_Store
+*.log
+*.tsbuildinfo

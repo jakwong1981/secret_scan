@@ -1,0 +1,10 @@
+packages:
+  - packages/*
+
+# esbuild ships a post-install script that places the platform binary.
+onlyBuiltDependencies:
+  - esbuild
+
+# Reproducibility comes from pnpm-lock.yaml; the default supply-chain age gate
+# would reject freshly published packages during clean container builds.
+minimumReleaseAge: 0

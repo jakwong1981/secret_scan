@@ -1,0 +1,548 @@
+openapi: 3.1.0
+info:
+  title: SecretKeyPreview API
+  version: 0.1.0
+  description: |
+    Owner-only local vault for every AI/LLM API key found on a Mac.
+
+    * Transport is HTTPS only (TLS 1.3, TLS 1.2 floor). No plaintext listener is
+      published by the application.
+    * All responses use one envelope: `{ code, message, data, timestamp, traceId }`.
+      Errors replace `data` with an optional detail object.
+    * `skp_session` is an httpOnly, Secure, SameSite=Strict cookie. Routes marked
+      `session` require it; routes marked `sensitive` additionally require a fresh
+      re-authentication (`POST /auth/verify-password`) within the last 5 minutes.
+  license:
+    name: Proprietary
+
+servers:
+  - url: https://127.0.0.1:4173/api/v1
+    description: Local HTTPS server (default)
+
+tags:
+  - name: auth
+  - name: keys
+  - name: scans
+  - name: sources
+  - name: settings
+  - name: audit
+  - name: providers
+  - name: system
+
+security:
+  - sessionCookie: []
+
+paths:
+  /health:
+    get:
+      tags: [system]
+      summary: Liveness + build info
+      security: []
+      responses:
+        '200':
+          description: Service healthy
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/EnvelopeHealth'
+        '503':
+          description: Database unavailable
+
+  /auth/status:
+    get:
+      tags: [auth]
+      summary: Authentication configuration
+      security: []
+      responses:
+        '200':
+          description: Current auth status
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/EnvelopeAuthStatus'
+
+  /auth/bootstrap:
+    post:
+      tags: [auth]
+      summary: Create the owner account (first run only)
+      security: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/BootstrapRequest'
+      responses:
+        '200':
+          description: Owner created, session cookie set
+          headers:
+            Set-Cookie:
+              schema: { type: string }
+              description: skp_session=<id>; HttpOnly; Secure; SameSite=Strict; Path=/
+        '409':
+          description: Owner account already exists
+        '429':
+          description: Too many bootstrap attempts
+
+  /auth/login:
+    post:
+      tags: [auth]
+      summary: Sign in with the master password
+      security: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/LoginRequest'
+      responses:
+        '200':
+          description: Signed in
+          headers:
+            Set-Cookie:
+              schema: { type: string }
+        '401':
+          description: Invalid credentials (INVALID_CREDENTIALS)
+        '429':
+          description: Rate limited after 5 failures in 5 minutes
+
+  /auth/logout:
+    post:
+      tags: [auth]
+      summary: Revoke the current session
+      responses:
+        '200':
+          description: Session revoked, cookie cleared
+
+  /auth/me:
+    get:
+      tags: [auth]
+      summary: Current session user
+      responses:
+        '200':
+          description: Signed-in owner
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/EnvelopeSessionUser'
+        '401':
+          description: No valid session
+
+  /auth/verify-password:
+    post:
+      tags: [auth]
+      summary: Re-authenticate to unlock sensitive operations for 5 minutes
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/VerifyPasswordRequest'
+      responses:
+        '200':
+          description: Sensitive scope granted
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  sensitiveScopeUntil: { type: string, format: date-time }
+        '401':
+          description: Wrong master password
+
+  /auth/change-password:
+    post:
+      tags: [auth]
+      summary: Change the master password (rotates all other sessions)
+      x-security: sensitive
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [currentPassword, newPassword]
+              properties:
+                currentPassword: { type: string }
+                newPassword: { type: string, minLength: 12 }
+      responses:
+        '200':
+          description: Password changed
+
+  /auth/google/start:
+    get:
+      tags: [auth]
+      summary: Begin Google OAuth (loopback + PKCE)
+      security: []
+      responses:
+        '200':
+          description: Authorization URL
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  authorizationUrl: { type: string }
+                  state: { type: string }
+                  expiresAt: { type: string, format: date-time }
+
+  /auth/google/callback:
+    get:
+      tags: [auth]
+      summary: Google redirect handler (registered at https://127.0.0.1:4173/api/v1/auth/google/callback)
+      security: []
+      parameters:
+        - in: query
+          name: code
+          required: true
+          schema: { type: string }
+        - in: query
+          name: state
+          required: true
+          schema: { type: string }
+      responses:
+        '200':
+          description: HTML page that notifies the opener window
+          content:
+            text/html:
+              schema: { type: string }
+        '400':
+          description: Missing code, bad state, or account not allow-listed
+
+  /keys:
+    get:
+      tags: [keys]
+      summary: List discovered keys (masked)
+      parameters:
+        - { in: query, name: provider, schema: { type: string } }
+        - { in: query, name: status, schema: { type: string, enum: [active, removed, archived] } }
+        - { in: query, name: sourceKind, schema: { type: string, enum: [file, env-file, keychain, regex-file] } }
+        - { in: query, name: search, schema: { type: string } }
+        - { in: query, name: sort, schema: { type: string, enum: [date_added, provider, last_seen] } }
+        - { in: query, name: limit, schema: { type: integer, default: 50, maximum: 200 } }
+        - { in: query, name: offset, schema: { type: integer, default: 0 } }
+      responses:
+        '200':
+          description: Page of masked keys
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/EnvelopeKeyList'
+        '401':
+          $ref: '#/components/responses/Unauthenticated'
+
+  /keys/{id}:
+    get:
+      tags: [keys]
+      summary: Key detail with evidence and lifecycle
+      parameters: [{ in: path, name: id, required: true, schema: { type: string } }]
+      responses:
+        '200':
+          description: Key detail
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/EnvelopeKeyDetail'
+        '404':
+          description: Key not found
+
+  /keys/{id}/reveal:
+    post:
+      tags: [keys]
+      summary: Decrypt and return the secret once (sensitive scope required)
+      x-security: sensitive
+      parameters: [{ in: path, name: id, required: true, schema: { type: string } }]
+      responses:
+        '200':
+          description: Decrypted value, valid for 30 seconds
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  value: { type: string }
+                  expiresAt: { type: string, format: date-time }
+        '401':
+          description: Re-authentication required
+
+  /keys/{id}/verify:
+    post:
+      tags: [keys]
+      summary: Ask the provider whether the key still works (opt-in setting)
+      parameters: [{ in: path, name: id, required: true, schema: { type: string } }]
+      responses:
+        '200':
+          description: Verification outcome (valid | invalid | error)
+        '403':
+          description: Verification disabled in Settings
+
+  /keys/{id}:
+    patch:
+      tags: [keys]
+      summary: Update label / tags / status
+      parameters: [{ in: path, name: id, required: true, schema: { type: string } }]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                label: { type: string, maxLength: 120 }
+                tags: { type: array, items: { type: string } }
+                status: { type: string, enum: [active, archived] }
+      responses:
+        '200':
+          description: Updated
+    delete:
+      tags: [keys]
+      summary: Delete a key from the vault (sensitive scope required)
+      x-security: sensitive
+      parameters: [{ in: path, name: id, required: true, schema: { type: string } }]
+      responses:
+        '200':
+          description: Deleted
+
+  /scans:
+    get:
+      tags: [scans]
+      summary: Scan history
+      responses:
+        '200':
+          description: Runs and aggregate totals
+    post:
+      tags: [scans]
+      summary: Trigger a scan over the enabled sources
+      responses:
+        '202':
+          description: Scan finished (runs synchronously, progress via SSE)
+
+  /scans/{id}:
+    get:
+      tags: [scans]
+      summary: Scan run detail
+      parameters: [{ in: path, name: id, required: true, schema: { type: string } }]
+      responses:
+        '200':
+          description: Run row
+
+  /scans/{id}/cancel:
+    post:
+      tags: [scans]
+      summary: Request cancellation of a running scan
+      parameters: [{ in: path, name: id, required: true, schema: { type: string } }]
+      responses:
+        '200':
+          description: Cancellation accepted
+
+  /scans/{id}/events:
+    get:
+      tags: [scans]
+      summary: Server-sent progress events for a scan run
+      parameters: [{ in: path, name: id, required: true, schema: { type: string } }]
+      responses:
+        '200':
+          description: text/event-stream
+
+  /sources:
+    get:
+      tags: [sources]
+      summary: Scan source registry
+      responses:
+        '200':
+          description: Source definitions
+    post:
+      tags: [sources]
+      summary: Add a scan source (sensitive scope required)
+      x-security: sensitive
+      responses:
+        '201':
+          description: Source created
+
+  /sources/{id}:
+    patch:
+      tags: [sources]
+      summary: Enable/disable or edit a source
+      parameters: [{ in: path, name: id, required: true, schema: { type: string } }]
+      responses:
+        '200':
+          description: Updated
+    delete:
+      tags: [sources]
+      summary: Remove a source (sensitive scope required)
+      x-security: sensitive
+      parameters: [{ in: path, name: id, required: true, schema: { type: string } }]
+      responses:
+        '200':
+          description: Deleted
+
+  /settings:
+    get:
+      tags: [settings]
+      summary: Current settings
+      responses:
+        '200':
+          description: Settings
+    put:
+      tags: [settings]
+      summary: Update settings (sensitive scope required)
+      x-security: sensitive
+      responses:
+        '200':
+          description: Updated settings
+
+  /audit:
+    get:
+      tags: [audit]
+      summary: Audit trail (newest first)
+      parameters:
+        - { in: query, name: limit, schema: { type: integer, default: 50, maximum: 200 } }
+        - { in: query, name: offset, schema: { type: integer, default: 0 } }
+      responses:
+        '200':
+          description: Audit entries
+
+  /providers:
+    get:
+      tags: [providers]
+      summary: Provider catalogue used by the classifier
+      responses:
+        '200':
+          description: Providers
+
+components:
+  securitySchemes:
+    sessionCookie:
+      type: apiKey
+      in: cookie
+      name: skp_session
+      description: httpOnly session cookie issued by /auth/login or /auth/bootstrap
+
+  responses:
+    Unauthenticated:
+      description: Missing or invalid session
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/ApiError'
+
+  schemas:
+    ApiError:
+      type: object
+      required: [code, message, timestamp, traceId]
+      properties:
+        code: { type: string, example: SENSITIVE_SCOPE_REQUIRED }
+        message: { type: string }
+        data: {}
+        timestamp: { type: string, format: date-time }
+        traceId: { type: string }
+
+    EnvelopeHealth:
+      type: object
+      properties:
+        code: { type: string, example: OK }
+        data:
+          type: object
+          properties:
+            status: { type: string, example: ok }
+            version: { type: string }
+            uptimeSeconds: { type: number }
+            tls: { type: boolean, enum: [true] }
+        timestamp: { type: string, format: date-time }
+        traceId: { type: string }
+
+    EnvelopeAuthStatus:
+      type: object
+      properties:
+        data:
+          type: object
+          properties:
+            needsBootstrap: { type: boolean }
+            passwordConfigured: { type: boolean }
+            googleConfigured: { type: boolean }
+            googleAllowedEmails: { type: array, items: { type: string } }
+
+    EnvelopeSessionUser:
+      type: object
+      properties:
+        data:
+          type: object
+          properties:
+            id: { type: string }
+            email: { type: string, format: email }
+            methods:
+              type: array
+              items: { type: string, enum: [password, google] }
+
+    EnvelopeKeyList:
+      type: object
+      properties:
+        data:
+          type: object
+          properties:
+            items:
+              type: array
+              items: { $ref: '#/components/schemas/MaskedKey' }
+            total: { type: integer }
+
+    EnvelopeKeyDetail:
+      type: object
+      properties:
+        data:
+          allOf:
+            - $ref: '#/components/schemas/MaskedKey'
+            - type: object
+              properties:
+                tags: { type: array, items: { type: string } }
+                events:
+                  type: array
+                  items:
+                    type: object
+                    properties:
+                      id: { type: string }
+                      type:
+                        type: string
+                        enum: [discovered, revealed, verified, rotated, removed, archived, deleted]
+                      at: { type: string, format: date-time }
+                      actor: { type: string }
+                      note: { type: string }
+
+    MaskedKey:
+      type: object
+      properties:
+        id: { type: string }
+        provider: { type: string }
+        providerLabel: { type: string }
+        label: { type: string }
+        maskedValue: { type: string, example: sk-ant-••••••wXyZ }
+        fingerprint: { type: string, description: sha256 of the secret, used for dedupe }
+        sourceKind: { type: string, enum: [file, env-file, keychain, regex-file] }
+        sourcePath: { type: string }
+        sourcePointer: { type: string }
+        envVarName: { type: string }
+        firstSeenAt: { type: string, format: date-time }
+        lastSeenAt: { type: string, format: date-time }
+        sourceMtime: { type: string, format: date-time }
+        lastVerifiedAt: { type: string, format: date-time }
+        verificationStatus: { type: string, enum: [unknown, valid, invalid, error] }
+        status: { type: string, enum: [active, removed, archived] }
+
+    BootstrapRequest:
+      type: object
+      required: [email, masterPassword]
+      properties:
+        email: { type: string, format: email }
+        masterPassword: { type: string, minLength: 12 }
+
+    LoginRequest:
+      type: object
+      required: [email, masterPassword]
+      properties:
+        email: { type: string, format: email }
+        masterPassword: { type: string }
+
+    VerifyPasswordRequest:
+      type: object
+      required: [masterPassword]
+      properties:
+        masterPassword: { type: string }

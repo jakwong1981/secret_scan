@@ -1,0 +1,72 @@
+# docker-compose.yml
+# Local / single-host deployment. Loopback only by default: change the ports
+# binding ONLY together with the TLS termination (see docker/nginx.conf).
+name: secretkeypreview
+
+services:
+  app:
+    image: ${SKP_IMAGE_NAME:-secretkeypreview}:${SKP_IMAGE_TAG:-latest}
+    build:
+      context: .
+      dockerfile: docker/Dockerfile
+      args:
+        NODE_IMAGE: ${NODE_IMAGE:-node:22.14.0-bookworm-slim}
+        VERSION: ${SKP_IMAGE_TAG:-latest}
+        VCS_REF: ${VCS_REF:-unknown}
+    init: true
+    restart: unless-stopped
+    user: "10001:10001"
+    ports:
+      - "127.0.0.1:${SKP_PORT:-4173}:4173"
+    env_file:
+      - .env
+    environment:
+      SKP_HOST: "0.0.0.0"
+      SKP_PORT: "4173"
+      SKP_DATA_DIR: "/data"
+      SKP_SCAN_ROOT: "/scan"
+      HOME: "/scan"
+    volumes:
+      - skp-data:/data
+      - ${SKP_VAULT_MASTER_KEY_FILE:-./secrets/vault_master_key}:/run/secrets/vault_master_key:ro
+      - ${SKP_CERTS_DIR:-./certs}:/certs:ro
+      - ${SKP_SCAN_HOST_DIR:-/Users/wongchimanjack}:/scan:ro
+    read_only: true
+    tmpfs:
+      - /tmp
+    security_opt:
+      - no-new-privileges:true
+    cap_drop:
+      - ALL
+    healthcheck:
+      test:
+        - CMD
+        - node
+        - -e
+        - "const p=process.env.SKP_PORT||4173;fetch('http://127.0.0.1:'+p+'/health').then(r=>process.exit(r.ok?0:1)).catch(()=>process.exit(1))"
+      interval: 30s
+      timeout: 5s
+      retries: 3
+      start_period: 15s
+    logging:
+      driver: json-file
+      options:
+        max-size: "10m"
+        max-file: "5"
+
+  # Optional reverse proxy for harder isolation / LAN sharing. The app already
+  # terminates TLS itself; this hop exists for public-facing deployments.
+  nginx-tls:
+    profiles: ["tls"]
+    image: nginx:1.27-alpine
+    restart: unless-stopped
+    ports:
+      - "127.0.0.1:${SKP_TLS_PORT:-8443}:8443"
+    volumes:
+      - ./docker/nginx.conf:/etc/nginx/conf.d/default.conf:ro
+      - ${SKP_CERTS_DIR:-./certs}:/etc/nginx/certs:ro
+    depends_on:
+      - app
+
+volumes:
+  skp-data:

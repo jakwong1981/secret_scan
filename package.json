@@ -1,0 +1,28 @@
+{
+  "name": "secretkeypreview",
+  "version": "0.1.0",
+  "private": true,
+  "packageManager": "pnpm@11.22.0",
+  "engines": {
+    "node": ">=22.14.0"
+  },
+  "scripts": {
+    "dev": "pnpm --parallel --filter @skp/server --filter @skp/web dev",
+    "build": "pnpm --filter @skp/web build && pnpm --filter @skp/server build",
+    "start": "pnpm --filter @skp/server start",
+    "test": "pnpm -r test",
+    "test:unit": "pnpm -r test:unit",
+    "postinstall": "pnpm --filter @skp/contracts build",
+    "lint": "pnpm -r lint",
+    "typecheck": "pnpm -r typecheck",
+    "format": "prettier --write .",
+    "format:check": "prettier --check ."
+  },
+  "devDependencies": {
+    "@types/node": "26.6.5",
+    "eslint": "10.13.0",
+    "prettier": "3.9.10",
+    "typescript": "5.9.3",
+    "typescript-eslint": "8.71.2"
+  }
+}
