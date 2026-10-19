@@ -3,20 +3,27 @@ import { z } from "zod";
 import {
   bootstrapRequestSchema,
   loginRequestSchema,
+  registerRequestSchema,
   verifyPasswordRequestSchema,
 } from "@skp/contracts";
 import { ok } from "../../core/http/respond.js";
 import { SESSION_COOKIE } from "../../core/http/session-cookie.js";
-import { env, googleAllowedEmails, googleConfigured } from "../../config/env.js";
+import {
+  env,
+  googleAllowedEmails,
+  googleConfigured,
+} from "../../config/env.js";
 import { readSettings } from "../../infra/db/repositories/settings.repository.js";
 import {
   auditAuth,
   bootstrap,
   changePassword,
   completeGoogleAuth,
+  listUserViews,
   login,
   logout,
   needsBootstrap,
+  register,
   reauthenticate,
   resolveSession,
   startGoogleAuth,
@@ -38,7 +45,11 @@ function setSessionCookie(reply: FastifyReply, sessionId: string): void {
 }
 
 function googleCallbackHtml(success: boolean, message?: string): string {
-  const payload = JSON.stringify({ type: "skp:google-auth", ok: success, message });
+  const payload = JSON.stringify({
+    type: "skp:google-auth",
+    ok: success,
+    message,
+  });
   const script = success
     ? `window.opener && window.opener.postMessage(${payload}, window.location.origin); setTimeout(() => window.close(), 800);`
     : "setTimeout(() => window.close(), 4000);";
@@ -62,7 +73,9 @@ const authRoutes: FastifyPluginAsync = async (app) => {
       needsBootstrap: needsBootstrap(app.db),
       passwordConfigured: !needsBootstrap(app.db),
       googleConfigured: googleConfigured(),
-      googleAllowedEmails: storedEmails.length > 0 ? storedEmails : googleAllowedEmails(),
+      googleAllowedEmails:
+        storedEmails.length > 0 ? storedEmails : googleAllowedEmails(),
+      passwordMinLength: env.SKP_PASSWORD_MIN_LENGTH,
     });
   });
 
@@ -71,7 +84,8 @@ const authRoutes: FastifyPluginAsync = async (app) => {
     { config: { rateLimit: { max: 5, timeWindow: "10 minutes" } } },
     async (request, reply) => {
       const parsed = bootstrapRequestSchema.safeParse(request.body);
-      if (!parsed.success) throw new ValidationError("Invalid bootstrap payload");
+      if (!parsed.success)
+        throw new ValidationError("Invalid bootstrap payload");
       const context = bootstrap(app.db, {
         email: parsed.data.email,
         masterPassword: parsed.data.masterPassword,
@@ -123,32 +137,81 @@ const authRoutes: FastifyPluginAsync = async (app) => {
     },
   );
 
-  app.post("/logout", { config: { requiresSession: true } }, async (request, reply) => {
-    const context = resolveSession(app.db, request.cookies[SESSION_COOKIE.name]);
-    if (context) {
-      logout(app.db, context.session.id);
+  app.post(
+    "/register",
+    {
+      config: {
+        rateLimit: { max: 5, timeWindow: "10 minutes" },
+      },
+    },
+    async (request, reply) => {
+      const parsed = registerRequestSchema.safeParse(request.body);
+      if (!parsed.success)
+        throw new ValidationError("Invalid registration payload");
+      const created = register(app.db, parsed.data);
       auditAuth(app.db, {
         traceId: request.id,
-        actor: context.user.email,
-        action: "auth.logout",
+        actor: created.email,
+        action: "auth.register",
         outcome: "success",
+        target: created.email,
       });
-    }
-    reply.clearCookie(SESSION_COOKIE.name, { path: "/" });
-    return ok(reply, { revoked: true } as const);
-  });
+      return ok(reply, created);
+    },
+  );
 
-  app.get("/me", { config: { requiresSession: true } }, async (request, reply) => {
-    if (!request.user) throw new ValidationError("No active session");
-    return ok(reply, viewOf(request.user, app.db));
-  });
+  app.get(
+    "/users",
+    { config: { requiresSession: true } },
+    async (request, reply) => {
+      const items = listUserViews(app.db);
+      return ok(reply, { items, total: items.length });
+    },
+  );
+
+  app.post(
+    "/logout",
+    { config: { requiresSession: true } },
+    async (request, reply) => {
+      const context = resolveSession(
+        app.db,
+        request.cookies[SESSION_COOKIE.name],
+      );
+      if (context) {
+        logout(app.db, context.session.id);
+        auditAuth(app.db, {
+          traceId: request.id,
+          actor: context.user.email,
+          action: "auth.logout",
+          outcome: "success",
+        });
+      }
+      reply.clearCookie(SESSION_COOKIE.name, { path: "/" });
+      return ok(reply, { revoked: true } as const);
+    },
+  );
+
+  app.get(
+    "/me",
+    { config: { requiresSession: true } },
+    async (request, reply) => {
+      if (!request.user) throw new ValidationError("No active session");
+      return ok(reply, viewOf(request.user, app.db));
+    },
+  );
 
   app.post(
     "/verify-password",
-    { config: { requiresSession: true, rateLimit: { max: 10, timeWindow: "5 minutes" } } },
+    {
+      config: {
+        requiresSession: true,
+        rateLimit: { max: 10, timeWindow: "5 minutes" },
+      },
+    },
     async (request, reply) => {
       const parsed = verifyPasswordRequestSchema.safeParse(request.body);
-      if (!parsed.success) throw new ValidationError("Invalid re-authentication payload");
+      if (!parsed.success)
+        throw new ValidationError("Invalid re-authentication payload");
       if (!request.session) throw new ValidationError("No active session");
       const until = reauthenticate(app.db, {
         sessionId: request.session.id,
@@ -175,7 +238,8 @@ const authRoutes: FastifyPluginAsync = async (app) => {
           newPassword: z.string().min(env.SKP_PASSWORD_MIN_LENGTH),
         })
         .safeParse(request.body);
-      if (!parsed.success) throw new ValidationError("Invalid password change payload");
+      if (!parsed.success)
+        throw new ValidationError("Invalid password change payload");
       if (!request.session) throw new ValidationError("No active session");
       changePassword(app.db, {
         sessionId: request.session.id,
@@ -200,7 +264,8 @@ const authRoutes: FastifyPluginAsync = async (app) => {
   app.get("/google/callback", async (request, reply) => {
     const query = request.query as { code?: string; state?: string };
     try {
-      if (!query.code || !query.state) throw new ValidationError("Missing authorization code");
+      if (!query.code || !query.state)
+        throw new ValidationError("Missing authorization code");
       const context = await completeGoogleAuth(app.db, {
         code: query.code,
         state: query.state,
@@ -224,7 +289,14 @@ const authRoutes: FastifyPluginAsync = async (app) => {
         detail: error instanceof Error ? error.message : "unknown",
       });
       reply.status(400);
-      return reply.type("text/html").send(googleCallbackHtml(false, error instanceof Error ? error.message : "Sign-in failed"));
+      return reply
+        .type("text/html")
+        .send(
+          googleCallbackHtml(
+            false,
+            error instanceof Error ? error.message : "Sign-in failed",
+          ),
+        );
     }
   });
 };

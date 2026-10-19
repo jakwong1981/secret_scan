@@ -6,7 +6,10 @@ import { env } from "../../config/env.js";
 let version = "0.1.0";
 try {
   const pkg = JSON.parse(
-    readFileSync(fileURLToPath(new URL("../../package.json", import.meta.url)), "utf8"),
+    readFileSync(
+      fileURLToPath(new URL("../../package.json", import.meta.url)),
+      "utf8",
+    ),
   ) as { version?: string };
   version = pkg.version ?? version;
 } catch {
@@ -23,24 +26,25 @@ const healthRoutes: FastifyPluginAsync = async (app) => {
         return false;
       }
     })();
-    reply.header("strict-transport-security", `max-age=31536000; includeSubDomains`);
-    return reply.status(dbOk ? 200 : 503).send(
-      {
-        code: dbOk ? "OK" : "SERVICE_UNAVAILABLE",
-        message: dbOk ? undefined : "database unavailable",
-        data: dbOk
-          ? {
-              status: "ok" as const,
-              version,
-              uptimeSeconds: Math.round(process.uptime()),
-              tls: true as const,
-              environment: env.SKP_NODE_ENV ?? "production",
-            }
-          : undefined,
-        timestamp: new Date().toISOString(),
-        traceId: request.id,
-      },
+    reply.header(
+      "strict-transport-security",
+      `max-age=31536000; includeSubDomains`,
     );
+    return reply.status(dbOk ? 200 : 503).send({
+      code: dbOk ? "OK" : "SERVICE_UNAVAILABLE",
+      message: dbOk ? undefined : "database unavailable",
+      data: dbOk
+        ? {
+            status: "ok" as const,
+            version,
+            uptimeSeconds: Math.round(process.uptime()),
+            tls: true as const,
+            environment: env.SKP_NODE_ENV ?? "production",
+          }
+        : undefined,
+      timestamp: new Date().toISOString(),
+      traceId: request.id,
+    });
   });
 };
 

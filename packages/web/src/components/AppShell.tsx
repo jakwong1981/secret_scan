@@ -24,8 +24,12 @@ export function AppShell() {
       <header className="border-b border-line bg-card">
         <div className="mx-auto flex max-w-6xl flex-col gap-4 px-4 py-4 sm:flex-row sm:items-center sm:justify-between">
           <div>
-            <p className="text-base font-semibold tracking-tight text-ink">SecretKeyPreview</p>
-            <p className="text-xs text-muted">Owner-only API key vault · HTTPS only</p>
+            <p className="text-base font-semibold tracking-tight text-ink">
+              SecretKeyPreview
+            </p>
+            <p className="text-xs text-muted">
+              Local AI API key vault · HTTPS only
+            </p>
           </div>
           <nav aria-label="Main" className="flex flex-wrap items-center gap-1">
             {NAV_ITEMS.map((item) => (
@@ -34,7 +38,9 @@ export function AppShell() {
                 to={item.to}
                 className={({ isActive }) =>
                   `rounded-lg px-3 py-1.5 text-sm font-medium transition ${
-                    isActive ? "bg-accent-soft text-accent" : "text-muted hover:text-ink"
+                    isActive
+                      ? "bg-accent-soft text-accent"
+                      : "text-muted hover:text-ink"
                   }`
                 }
               >

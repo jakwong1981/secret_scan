@@ -25,12 +25,18 @@ services:
       SKP_PORT: "4173"
       SKP_DATA_DIR: "/data"
       SKP_SCAN_ROOT: "/scan"
+      SKP_TLS_CERT_PATH: "/certs/localhost.pem"
+      SKP_TLS_KEY_PATH: "/certs/localhost-key.pem"
+      SKP_VAULT_MASTER_KEY_FILE: "/run/secrets/vault_master_key"
+      # Loopback-bound on the host; explicit for clarity since the container
+      # itself binds 0.0.0.0 (the auto-default would disable sign-up).
+      SKP_ENABLE_REGISTRATION: "true"
       HOME: "/scan"
     volumes:
       - skp-data:/data
       - ${SKP_VAULT_MASTER_KEY_FILE:-./secrets/vault_master_key}:/run/secrets/vault_master_key:ro
       - ${SKP_CERTS_DIR:-./certs}:/certs:ro
-      - ${SKP_SCAN_HOST_DIR:-/Users/wongchimanjack}:/scan:ro
+      - ${SKP_SCAN_HOST_DIR:-${HOME}}:/scan:ro
     read_only: true
     tmpfs:
       - /tmp
@@ -43,7 +49,7 @@ services:
         - CMD
         - node
         - -e
-        - "const p=process.env.SKP_PORT||4173;fetch('http://127.0.0.1:'+p+'/health').then(r=>process.exit(r.ok?0:1)).catch(()=>process.exit(1))"
+        - "const p=process.env.SKP_PORT||4173;require('node:https').get('https://127.0.0.1:'+p+'/api/v1/health',{rejectUnauthorized:false},r=>process.exit(r.statusCode===200?0:1)).on('error',()=>process.exit(1))"
       interval: 30s
       timeout: 5s
       retries: 3

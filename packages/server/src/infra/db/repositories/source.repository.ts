@@ -3,12 +3,16 @@ import type { SourceRow } from "./rows.js";
 import { newId } from "../../ids.js";
 
 export function listSources(db: Db): SourceRow[] {
-  return db.prepare("SELECT * FROM sources ORDER BY priority ASC, id ASC").all() as unknown as SourceRow[];
+  return db
+    .prepare("SELECT * FROM sources ORDER BY priority ASC, id ASC")
+    .all() as unknown as SourceRow[];
 }
 
 export function listEnabledSources(db: Db): SourceRow[] {
   return db
-    .prepare("SELECT * FROM sources WHERE enabled = 1 ORDER BY priority ASC, id ASC")
+    .prepare(
+      "SELECT * FROM sources WHERE enabled = 1 ORDER BY priority ASC, id ASC",
+    )
     .all() as unknown as SourceRow[];
 }
 
@@ -62,7 +66,9 @@ export function insertSource(
   },
 ): SourceRow {
   const id = newId();
-  const priorityRow = db.prepare("SELECT COALESCE(MAX(priority), 0) + 10 AS next FROM sources").get() as {
+  const priorityRow = db
+    .prepare("SELECT COALESCE(MAX(priority), 0) + 10 AS next FROM sources")
+    .get() as {
     next: number;
   };
   db.prepare(
@@ -104,7 +110,9 @@ export function updateSource(
   }
   if (assignments.length === 0) return;
   params.push(id);
-  db.prepare(`UPDATE sources SET ${assignments.join(", ")} WHERE id = ?`).run(...params);
+  db.prepare(`UPDATE sources SET ${assignments.join(", ")} WHERE id = ?`).run(
+    ...params,
+  );
 }
 
 export function deleteSource(db: Db, id: string): void {

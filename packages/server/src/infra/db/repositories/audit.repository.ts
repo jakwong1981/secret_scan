@@ -27,11 +27,19 @@ export function recordAudit(db: Db, input: AuditInput): void {
   );
 }
 
-export function listAudit(db: Db, limit: number, offset: number): AuditLogRow[] {
-  return db.prepare("SELECT * FROM audit_logs ORDER BY at DESC LIMIT ? OFFSET ?").all(limit, offset) as unknown as AuditLogRow[];
+export function listAudit(
+  db: Db,
+  limit: number,
+  offset: number,
+): AuditLogRow[] {
+  return db
+    .prepare("SELECT * FROM audit_logs ORDER BY at DESC LIMIT ? OFFSET ?")
+    .all(limit, offset) as unknown as AuditLogRow[];
 }
 
 export function countAudit(db: Db): number {
-  const row = db.prepare("SELECT COUNT(*) AS total FROM audit_logs").get() as unknown as { total: number };
+  const row = db
+    .prepare("SELECT COUNT(*) AS total FROM audit_logs")
+    .get() as unknown as { total: number };
   return Number(row.total);
 }

@@ -19,7 +19,10 @@ async function main(): Promise<void> {
   const db = createDatabase();
   runMigrations(db);
   seedRegistry(db);
-  logger.info({ dataDir: env.SKP_DATA_DIR }, "database ready (migrations + registry seeds applied)");
+  logger.info(
+    { dataDir: env.SKP_DATA_DIR },
+    "database ready (migrations + registry seeds applied)",
+  );
 
   const scanService = createScanService(db, () => loadSources(db));
   const tls: TlsOptions = {

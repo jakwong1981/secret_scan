@@ -3,7 +3,15 @@ import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { Link } from "react-router-dom";
 import { api } from "../api/client";
 import type { MaskedKey, ScanProgressEvent } from "@skp/contracts";
-import { Badge, Button, Card, EmptyState, formatDate, Input, Spinner } from "../components/ui";
+import {
+  Badge,
+  Button,
+  Card,
+  EmptyState,
+  formatDate,
+  Input,
+  Spinner,
+} from "../components/ui";
 
 const SORTS = [
   { id: "date_added", label: "Date added" },
@@ -11,11 +19,28 @@ const SORTS = [
   { id: "last_seen", label: "Last seen" },
 ] as const;
 
-function verificationTone(key: MaskedKey): "neutral" | "ok" | "warn" | "danger" {
+function verificationTone(
+  key: MaskedKey,
+): "neutral" | "ok" | "warn" | "danger" {
   if (key.verificationStatus === "valid") return "ok";
   if (key.verificationStatus === "invalid") return "danger";
   if (key.verificationStatus === "error") return "warn";
   return "neutral";
+}
+
+/** Every home of the key except the one already shown in the row. */
+function otherLocations(key: MaskedKey): string[] {
+  return key.sources
+    .filter(
+      (source) =>
+        source.sourcePath !== key.sourcePath ||
+        (source.sourcePointer ?? "") !== (key.sourcePointer ?? ""),
+    )
+    .map((source) =>
+      source.sourcePointer
+        ? `${source.sourcePath} → ${source.sourcePointer}`
+        : source.sourcePath,
+    );
 }
 
 function statusTone(key: MaskedKey): "neutral" | "warn" | "danger" {
@@ -35,14 +60,23 @@ export function DashboardPage() {
   const keys = useQuery({
     queryKey: ["keys", provider, search, sort],
     queryFn: () =>
-      api.keys.list({ provider: provider || undefined, search: search || undefined, sort, limit: 100 }),
+      api.keys.list({
+        provider: provider || undefined,
+        search: search || undefined,
+        sort,
+        limit: 100,
+      }),
     refetchInterval: scanning ? 3000 : false,
   });
 
-  const sources = useQuery({ queryKey: ["sources"], queryFn: api.sources.list });
+  const sources = useQuery({
+    queryKey: ["sources"],
+    queryFn: api.sources.list,
+  });
   const providers = useMemo(() => {
     const names = new Set<string>();
-    for (const item of keys.data?.items ?? []) names.add(`${item.provider}:${item.providerLabel}`);
+    for (const item of keys.data?.items ?? [])
+      names.add(`${item.provider}:${item.providerLabel}`);
     return [...names].sort((a, b) => a.localeCompare(b));
   }, [keys.data]);
 
@@ -70,7 +104,8 @@ export function DashboardPage() {
   const totalKeys = keys.data?.total ?? 0;
   const providerCount = new Set(items.map((item) => item.provider)).size;
   const needingAttention = items.filter(
-    (item) => item.status === "removed" || item.verificationStatus === "invalid",
+    (item) =>
+      item.status === "removed" || item.verificationStatus === "invalid",
   ).length;
   const lastScan = useQuery({ queryKey: ["scans"], queryFn: api.scans.list });
   const lastScanDate = lastScan.data?.items?.[0]?.startedAt;
@@ -79,10 +114,12 @@ export function DashboardPage() {
     <div className="space-y-6">
       <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
         <div>
-          <h1 className="text-xl font-semibold tracking-tight text-ink">API keys on this Mac</h1>
+          <h1 className="text-xl font-semibold tracking-tight text-ink">
+            API keys on this Mac
+          </h1>
           <p className="text-sm text-muted">
-            {sources.data?.items.filter((source) => source.enabled).length ?? 0} sources monitored ·
-            last scan {formatDate(lastScanDate)}
+            {sources.data?.items.filter((source) => source.enabled).length ?? 0}{" "}
+            sources monitored · last scan {formatDate(lastScanDate)}
           </p>
         </div>
         <Button onClick={() => scan.mutate()} disabled={scanning}>
@@ -92,16 +129,26 @@ export function DashboardPage() {
 
       <div className="grid gap-3 sm:grid-cols-3">
         <Card className="p-4">
-          <p className="text-xs uppercase tracking-wide text-muted">Keys discovered</p>
+          <p className="text-xs uppercase tracking-wide text-muted">
+            Keys discovered
+          </p>
           <p className="mt-1 text-2xl font-semibold text-ink">{totalKeys}</p>
         </Card>
         <Card className="p-4">
-          <p className="text-xs uppercase tracking-wide text-muted">Providers</p>
-          <p className="mt-1 text-2xl font-semibold text-ink">{providerCount}</p>
+          <p className="text-xs uppercase tracking-wide text-muted">
+            Providers
+          </p>
+          <p className="mt-1 text-2xl font-semibold text-ink">
+            {providerCount}
+          </p>
         </Card>
         <Card className="p-4">
-          <p className="text-xs uppercase tracking-wide text-muted">Needs attention</p>
-          <p className="mt-1 text-2xl font-semibold text-ink">{needingAttention}</p>
+          <p className="text-xs uppercase tracking-wide text-muted">
+            Needs attention
+          </p>
+          <p className="mt-1 text-2xl font-semibold text-ink">
+            {needingAttention}
+          </p>
         </Card>
       </div>
 
@@ -109,12 +156,20 @@ export function DashboardPage() {
         <Card className="p-4">
           <div className="flex items-center justify-between">
             <p className="text-sm font-medium text-ink">Scan progress</p>
-            {scanning ? <Spinner label="running" /> : <Badge tone="ok">finished</Badge>}
+            {scanning ? (
+              <Spinner label="running" />
+            ) : (
+              <Badge tone="ok">finished</Badge>
+            )}
           </div>
-          <ol aria-live="polite" className="mt-2 max-h-40 space-y-1 overflow-y-auto text-xs text-muted">
+          <ol
+            aria-live="polite"
+            className="mt-2 max-h-40 space-y-1 overflow-y-auto text-xs text-muted"
+          >
             {progress.map((event, index) => (
               <li key={`${event.at}-${index}`}>
-                <span className="font-mono text-ink/70">{event.phase}</span> {event.message}
+                <span className="font-mono text-ink/70">{event.phase}</span>{" "}
+                {event.message}
               </li>
             ))}
           </ol>
@@ -155,7 +210,9 @@ export function DashboardPage() {
             <span className="mb-1 block font-medium text-ink">Sort by</span>
             <select
               value={sort}
-              onChange={(event) => setSort(event.target.value as (typeof SORTS)[number]["id"])}
+              onChange={(event) =>
+                setSort(event.target.value as (typeof SORTS)[number]["id"])
+              }
               className="w-full rounded-lg border border-line bg-card px-3 py-2 text-sm text-ink outline-none focus:border-accent"
             >
               {SORTS.map((option) => (
@@ -205,24 +262,50 @@ export function DashboardPage() {
               </thead>
               <tbody>
                 {items.map((item) => (
-                  <tr key={item.id} className="border-b border-line last:border-0">
+                  <tr
+                    key={item.id}
+                    className="border-b border-line last:border-0"
+                  >
                     <td className="px-4 py-3">
-                      <span className="font-medium text-ink">{item.providerLabel}</span>
+                      <span className="font-medium text-ink">
+                        {item.providerLabel}
+                      </span>
                     </td>
                     <td className="px-4 py-3">
-                      <span aria-label="masked API key" className="font-mono text-xs text-ink">
+                      <span
+                        aria-label="masked API key"
+                        className="font-mono text-xs text-ink"
+                      >
                         {item.maskedValue}
                       </span>
                       {item.envVarName ? (
-                        <span className="ml-2 text-xs text-muted">{item.envVarName}</span>
+                        <span className="ml-2 text-xs text-muted">
+                          {item.envVarName}
+                        </span>
                       ) : null}
                     </td>
                     <td className="px-4 py-3">
-                      <span className="text-xs text-muted" title={item.sourcePath}>
-                        {item.sourceKind === "keychain" ? "macOS Keychain" : item.sourcePath}
+                      <span
+                        className="text-xs text-muted"
+                        title={item.sourcePath}
+                      >
+                        {item.sourceKind === "keychain"
+                          ? "macOS Keychain"
+                          : item.sourcePath}
                       </span>
                       {item.sourcePointer ? (
-                        <span className="block text-xs text-muted/80">{item.sourcePointer}</span>
+                        <span className="block text-xs text-muted/80">
+                          {item.sourcePointer}
+                        </span>
+                      ) : null}
+                      {item.sources.length > 1 ? (
+                        <span
+                          className="block text-xs text-muted/80"
+                          title={otherLocations(item).join("\n")}
+                        >
+                          +{item.sources.length - 1} more location
+                          {item.sources.length > 2 ? "s" : ""}
+                        </span>
                       ) : null}
                     </td>
                     <td className="px-4 py-3 text-xs text-muted">
@@ -231,7 +314,9 @@ export function DashboardPage() {
                     <td className="px-4 py-3">
                       <div className="flex flex-wrap gap-1">
                         <Badge tone={statusTone(item)}>{item.status}</Badge>
-                        <Badge tone={verificationTone(item)}>{item.verificationStatus}</Badge>
+                        <Badge tone={verificationTone(item)}>
+                          {item.verificationStatus}
+                        </Badge>
                       </div>
                     </td>
                     <td className="px-4 py-3 text-right">

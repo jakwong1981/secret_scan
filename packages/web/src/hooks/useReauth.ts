@@ -29,7 +29,9 @@ export function useReauth(): ReauthController {
         const result = await api.auth.verifyPassword(masterPassword);
         grantSensitive(result.sensitiveScopeUntil);
       } catch (caught) {
-        setError(caught instanceof Error ? caught.message : "Re-authentication failed");
+        setError(
+          caught instanceof Error ? caught.message : "Re-authentication failed",
+        );
         throw caught;
       } finally {
         setBusy(false);

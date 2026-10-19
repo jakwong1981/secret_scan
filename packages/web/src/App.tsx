@@ -5,6 +5,7 @@ import { RequireAuth } from "./components/RequireAuth";
 import { DashboardPage } from "./features/DashboardPage";
 import { KeyDetailPage } from "./features/KeyDetailPage";
 import { LoginPage } from "./features/LoginPage";
+import { RegisterPage } from "./features/RegisterPage";
 import { ScansPage } from "./features/ScansPage";
 import { SettingsPage } from "./features/SettingsPage";
 import { AuditPage } from "./features/AuditPage";
@@ -23,11 +24,19 @@ export function App() {
       .me()
       .then((session) => {
         if (cancelled) return;
-        setUser({ id: session.id, email: session.email, methods: session.methods });
+        setUser({
+          id: session.id,
+          email: session.email,
+          methods: session.methods,
+        });
       })
       .catch((error: unknown) => {
         if (cancelled) return;
-        if (error instanceof ApiError && (error.code === "UNAUTHENTICATED" || error.code === "INVALID_CREDENTIALS")) {
+        if (
+          error instanceof ApiError &&
+          (error.code === "UNAUTHENTICATED" ||
+            error.code === "INVALID_CREDENTIALS")
+        ) {
           return;
         }
         // unknown transport error: stay on the login page
@@ -41,6 +50,7 @@ export function App() {
     <BrowserRouter>
       <Routes>
         <Route path="/login" element={<LoginPage />} />
+        <Route path="/register" element={<RegisterPage />} />
         <Route
           element={
             <RequireAuth>

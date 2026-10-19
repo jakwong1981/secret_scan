@@ -16,6 +16,7 @@ From `AGENT.md`:
 > Dashboard shows every API key with its relative provider and date added on the MacBook.
 
 **In scope (v1)**
+
 1. Read-only scanner that discovers AI/LLM API keys and OAuth credentials across AI-agent CLIs/IDEs installed on this Mac (files, dotenv/rc files, environment variables, macOS Keychain metadata).
 2. Encrypted local vault (SQLite) with provider attribution, source evidence, and "date added" (file mtime + first-seen timestamp).
 3. Owner-only access: master-password login and Google OAuth (loopback flow) with an owner email allowlist.
@@ -24,6 +25,7 @@ From `AGENT.md`:
 6. Full docs deliverables per `AGENTS.md` §4 (Program Spec, Function Spec, Infrastructure, Mermaid diagrams, Testing matrix).
 
 **Explicitly out of scope (v1)**
+
 - Multi-user / team sharing, cloud sync, remote access over LAN, mobile app.
 - Rewriting or exporting source config files (strictly read-only).
 - Broad whole-home filesystem crawl (privacy + noise). Sources come from a curated, user-editable registry.
@@ -32,26 +34,27 @@ From `AGENT.md`:
 
 ## 2. Technology Decision
 
-| Concern | Decision | Rationale |
-|---|---|---|
-| Backend runtime | **Node.js 22 LTS+ (26.x installed) + TypeScript 5 strict** | Native macOS interop (`child_process` for `security` CLI, Keychain), file/permission handling, single-language full stack |
-| Backend framework | **Fastify 5 + zod + @fastify/* plugins** | Thin layer, schema-first validation, built-in OpenAPI generation |
-| ORM / DB | **Drizzle ORM + better-sqlite3 (SQLite/WAL)** | Local single-user tool; typed queries; migrations with rollback; zero external DB service |
-| Crypto | **Argon2id (password) + AES-256-GCM (vault), node:crypto** | No third-party信任 surface; master key held in macOS Keychain |
-| Auth | **Custom session cookie (master password) + Google OAuth 2.0 loopback (PKCE)** | Loopback flow is the standard for local desktop-ish apps; no public callback URL required |
-| Frontend | **React 19 + Vite + TypeScript strict, TanStack Query, Zustand, React Router 7** | Matches `AGENTS.md` React standards; Query gives server-state caching |
-| Styling | **Tailwind CSS v4 + design tokens (minimalist, RWD)** | Fast, consistent, mobile-first; muted palette per `AGENTS.md` §3 |
-| API docs | **OpenAPI 3.1 generated from zod schemas (contract-first)** | `AGENTS.md` §1 contract-first requirement |
-| Tests | **Vitest (server + web), React Testing Library, supertest; Playwright optional e2e** | Same runner for both packages |
-| Package manager | **pnpm workspaces (11.22.0 installed)** | Single lockfile, workspace protocol |
-| Containerization | **Docker 24+ / buildx, Debian-slim base, compose** | Reproducible builds, self-hosted single-node deployment, no host Node dependency |
-| Transport | **HTTPS only — native `node:https` TLS 1.3 (TLS 1.2 floor) + locally trusted cert; optional nginx reverse-proxy profile** | Owner requirement: no plaintext HTTP anywhere; enables `Secure` session cookies |
+| Concern           | Decision                                                                                                                  | Rationale                                                                                                                 |
+| ----------------- | ------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------- |
+| Backend runtime   | **Node.js 22 LTS+ (26.x installed) + TypeScript 5 strict**                                                                | Native macOS interop (`child_process` for `security` CLI, Keychain), file/permission handling, single-language full stack |
+| Backend framework | _*Fastify 5 + zod + @fastify/* plugins_*                                                                                  | Thin layer, schema-first validation, built-in OpenAPI generation                                                          |
+| ORM / DB          | **Drizzle ORM + better-sqlite3 (SQLite/WAL)**                                                                             | Local single-user tool; typed queries; migrations with rollback; zero external DB service                                 |
+| Crypto            | **Argon2id (password) + AES-256-GCM (vault), node:crypto**                                                                | No third-party信任 surface; master key held in macOS Keychain                                                             |
+| Auth              | **Custom session cookie (master password) + Google OAuth 2.0 loopback (PKCE)**                                            | Loopback flow is the standard for local desktop-ish apps; no public callback URL required                                 |
+| Frontend          | **React 19 + Vite + TypeScript strict, TanStack Query, Zustand, React Router 7**                                          | Matches `AGENTS.md` React standards; Query gives server-state caching                                                     |
+| Styling           | **Tailwind CSS v4 + design tokens (minimalist, RWD)**                                                                     | Fast, consistent, mobile-first; muted palette per `AGENTS.md` §3                                                          |
+| API docs          | **OpenAPI 3.1 generated from zod schemas (contract-first)**                                                               | `AGENTS.md` §1 contract-first requirement                                                                                 |
+| Tests             | **Vitest (server + web), React Testing Library, supertest; Playwright optional e2e**                                      | Same runner for both packages                                                                                             |
+| Package manager   | **pnpm workspaces (11.22.0 installed)**                                                                                   | Single lockfile, workspace protocol                                                                                       |
+| Containerization  | **Docker 24+ / buildx, Debian-slim base, compose**                                                                        | Reproducible builds, self-hosted single-node deployment, no host Node dependency                                          |
+| Transport         | **HTTPS only — native `node:https` TLS 1.3 (TLS 1.2 floor) + locally trusted cert; optional nginx reverse-proxy profile** | Owner requirement: no plaintext HTTP anywhere; enables `Secure` session cookies                                           |
 
 **Rejected alternatives**
-- *Java Spring Boot + Vue*: good enterprise fit, but JNI/JNA for Keychain, `security` CLI plumbing, and slower feedback loop for a single-user local tool. Would only win if this must integrate into an existing Spring estate.
-- *Electron/Tauri desktop app*: doubles the surface (native packaging, updater) for v1; the local web app with `127.0.0.1` binding is sufficient and easier to test. Revisit as v2 "menu-bar app" if the owner wants a dock icon.
-- *Storing plaintext keys in SQLite*: rejected — vault is encrypted at rest, always.
-- *Browser-based File System Access API*: insufficient (no Keychain, no dotfiles, no env).
+
+- _Java Spring Boot + Vue_: good enterprise fit, but JNI/JNA for Keychain, `security` CLI plumbing, and slower feedback loop for a single-user local tool. Would only win if this must integrate into an existing Spring estate.
+- _Electron/Tauri desktop app_: doubles the surface (native packaging, updater) for v1; the local web app with `127.0.0.1` binding is sufficient and easier to test. Revisit as v2 "menu-bar app" if the owner wants a dock icon.
+- _Storing plaintext keys in SQLite_: rejected — vault is encrypted at rest, always.
+- _Browser-based File System Access API_: insufficient (no Keychain, no dotfiles, no env).
 
 ---
 
@@ -144,6 +147,7 @@ README.md
 Tables: `users`, `google_identities`, `sessions`, `scan_runs`, `api_keys`, `key_events`, `sources`, `audit_logs`, `settings`.
 
 Key highlights:
+
 - `users(id, email, password_hash, created_at, last_login_at)` — single owner row expected; bootstrap enforced when empty.
 - `google_identities(user_id, google_sub, email, picture_url, linked_at, unique(google_sub))` + allowlist row in `settings.google_allowed_emails`.
 - `sessions(id, user_id, created_at, last_seen_at, absolute_expires_at, idle_expires_at, revoked_at, ip_hash, user_agent_hash)` — rotation on privilege change (`sensitive_scope_until` stored server-side).
@@ -164,31 +168,32 @@ Migrations: every migration is reversible (`drizzle-kit` + hand-written `down.sq
 
 ### 5.1 Source registry (seeded from verified paths on this machine)
 
-| Source id | Kind | Path | Notes |
-|---|---|---|---|
-| `codex-auth` | file (json) | `~/.codex/auth.json` | `OPENAI_API_KEY`, `auth_mode` |
-| `codex-config` | file (toml) | `~/.codex/config.toml` | provider/model keys |
-| `grok-auth` | file (json) | `~/.grok/auth.json` | access + refresh tokens, xAI |
-| `bailian-config` | file (json) | `~/.bailian/config.json` | `token-plan.api_key` |
-| `arkcli-config` | file (yaml) | `~/.arkcli-bp/config.yaml` | `api_key`, `available_api_keys` |
-| `arkcli-env` | file (dotenv) | `~/.arkcli-bp/.env` | ARK_API_KEY etc. |
-| `gemini-oauth` | file (json) | `~/.gemini/oauth_creds.json`, `~/.gemini/google_accounts.json` | Google OAuth creds |
-| `gemini-settings` | file (json) | `~/.gemini/settings.json` | `security.auth.selectedType` |
-| `copilot-config` | file (json) | `~/.copilot/config.json`, `~/.cursor/cli-config.json`, `~/.cursor/mcp.json` | provider tokens |
-| `deepseek-token` | file (rawRegex) | `~/.deepseek/token/` | any file in dir |
-| `qwen-settings` | file (json/yaml) | `~/.qwen/settings.json`, `~/.qwen/` | `env.*` keys incl. BAILIAN/DASHSCOPE |
-| `continue-config` | file (yaml) | `~/.continue/config.yaml`, `~/.continue/.continuerc.json` | `apiKey` per provider block |
-| `opencode-config` | file (jsonc) | `~/.config/opencode/opencode.jsonc`, `~/.config/opencode/auth.json` | provider api keys |
-| `claude-session-env` | file (env) | `~/.claude/session-env/*` | per-session env exports |
-| `claude-config` | file (json) | `~/.claude.json` | env/provider hints, `apiKeyHelper` (noted, not harvested) |
-| `ollama-config` | file (json) | `~/.ollama/config.json` | cloud API keys |
-| `colab-token` | file (json) | `~/.config/colab-cli/token.json` | Google credential |
-| `docker-auth` | file (json) | `~/.docker/config.json`, `~/.config/configstore/*` | registry auth tokens |
-| `aws-*` | file (ini) | `~/.aws/credentials`, `~/.aws/config`, `~/.aws/sso/cache/*.json` | Bedrock/Anthropic-on-AWS keys |
-| `shell-env` | env file | `~/.zshrc`, `~/.zprofile`, `~/.bash_profile`, `~/.profile` | `export ANTHROPIC_API_KEY=…` |
-| `git-credentials` | file (rawRegex) | `~/.git-credentials`, `~/.config/git/*` | GitHub PATs |
-| `npm/pypi` | file | `~/.npmrc`, `~/.pip`, `~/.pypirc` | registry tokens |
-| `keychain-generic` | keychain | login keychain generic passwords | metadata enumeration via `security` CLI |
+| Source id            | Kind             | Path                                                                        | Notes                                                     |
+| -------------------- | ---------------- | --------------------------------------------------------------------------- | --------------------------------------------------------- |
+| `codex-auth`         | file (json)      | `~/.codex/auth.json`                                                        | `OPENAI_API_KEY`, `auth_mode`                             |
+| `codex-config`       | file (toml)      | `~/.codex/config.toml`                                                      | provider/model keys                                       |
+| `grok-auth`          | file (json)      | `~/.grok/auth.json`                                                         | access + refresh tokens, xAI                              |
+| `bailian-config`     | file (json)      | `~/.bailian/config.json`                                                    | `token-plan.api_key`                                      |
+| `arkcli-config`      | file (yaml)      | `~/.arkcli-bp/config.yaml`                                                  | `api_key`, `available_api_keys`                           |
+| `arkcli-env`         | file (dotenv)    | `~/.arkcli-bp/.env`                                                         | ARK_API_KEY etc.                                          |
+| `gemini-oauth`       | file (json)      | `~/.gemini/oauth_creds.json`, `~/.gemini/google_accounts.json`              | Google OAuth creds                                        |
+| `gemini-settings`    | file (json)      | `~/.gemini/settings.json`                                                   | `security.auth.selectedType`                              |
+| `copilot-config`     | file (json)      | `~/.copilot/config.json`, `~/.cursor/cli-config.json`, `~/.cursor/mcp.json` | provider tokens                                           |
+| `deepseek-token`     | file (rawRegex)  | `~/.deepseek/token/`                                                        | any file in dir                                           |
+| `qwen-settings`      | file (json/yaml) | `~/.qwen/settings.json`, `~/.qwen/`                                         | `env.*` keys incl. BAILIAN/DASHSCOPE                      |
+| `continue-config`    | file (yaml)      | `~/.continue/config.yaml`, `~/.continue/.continuerc.json`                   | `apiKey` per provider block                               |
+| `opencode-config`    | file (jsonc)     | `~/.config/opencode/opencode.jsonc`, `~/.config/opencode/auth.json`         | provider api keys                                         |
+| `claude-settings`    | file (json)      | `~/.claude/settings.json`                                                   | `env.ANTHROPIC_AUTH_TOKEN` / `ANTHROPIC_API_KEY`          |
+| `claude-session-env` | file (env)       | `~/.claude/session-env/*`                                                   | per-session env exports                                   |
+| `claude-config`      | file (json)      | `~/.claude.json`                                                            | env/provider hints, `apiKeyHelper` (noted, not harvested) |
+| `ollama-config`      | file (json)      | `~/.ollama/config.json`                                                     | cloud API keys                                            |
+| `colab-token`        | file (json)      | `~/.config/colab-cli/token.json`                                            | Google credential                                         |
+| `docker-auth`        | file (json)      | `~/.docker/config.json`, `~/.config/configstore/*`                          | registry auth tokens                                      |
+| `aws-*`              | file (ini)       | `~/.aws/credentials`, `~/.aws/config`, `~/.aws/sso/cache/*.json`            | Bedrock/Anthropic-on-AWS keys                             |
+| `shell-env`          | env file         | `~/.zshrc`, `~/.zprofile`, `~/.bash_profile`, `~/.profile`                  | `export ANTHROPIC_API_KEY=…`                              |
+| `git-credentials`    | file (rawRegex)  | `~/.git-credentials`, `~/.config/git/*`                                     | GitHub PATs                                               |
+| `npm/pypi`           | file             | `~/.npmrc`, `~/.pip`, `~/.pypirc`                                           | registry tokens                                           |
+| `keychain-generic`   | keychain         | login keychain generic passwords                                            | metadata enumeration via `security` CLI                   |
 
 View of scan roots is stable across sessions; registry seeded in seed migration and editable in Settings UI. Owners can add paths (single file or glob) for anything not covered.
 
@@ -196,7 +201,7 @@ View of scan roots is stable across sessions; registry seeded in seed migration 
 
 1. **Load enabled sources** → normalize `~` → read-only handles.
 2. **Parse** by parser type: `json` (JSONC tolerant), `yaml`, `toml`, `dotenv`, `rawRegex`, `keychain`.
-3. **Extract candidates**: walk parsed structures, keep every scalar whose *key name* matches `/(api[_-]?key|token|secret|password|credential|access[_-]?key|refresh[_-]?token)/i` plus regex hits from raw text (value patterns that look like keys even if key name is innocuous).
+3. **Extract candidates**: walk parsed structures, keep every scalar whose _key name_ matches `/(api[_-]?key|token|secret|password|credential|access[_-]?key|refresh[_-]?token)/i` plus regex hits from raw text (value patterns that look like keys even if key name is innocuous).
 4. **Classify** provider: value-prefix table first (authoritative), then env-var/key-name hint table, then source default. Emit `provider`, `label`, `evidence{path, pointer, envVar}`.
 5. **Normalize**: trim, reject known placeholders (`...`, `changeme`, `<...>`, `your-api-key`), reject booleans/numbers.
 6. **Fingerprint** `sha256(value)`; if row exists → bump `last_seen_at` + `key_events` no-op; else insert with ciphertext.
@@ -205,32 +210,33 @@ View of scan roots is stable across sessions; registry seeded in seed migration 
 
 ### 5.3 Provider prefix registry (v1 subset)
 
-| Provider | Prefix / signature | Env hints |
-|---|---|---|
-| Anthropic | `sk-ant-`, `sk-ant-api03-`, `sk-ant-oat01-` | `ANTHROPIC_API_KEY` |
-| OpenAI / Codex | `sk-proj-`, `sk-`, `sess-` | `OPENAI_API_KEY`, `OPENAI_ORG_ID` |
-| Google AI Studio | `AIza…` | `GOOGLE_API_KEY`, `GEMINI_API_KEY` |
-| xAI / Grok | `xai-` | `XAI_API_KEY` |
-| BytePlus Ark | `ark-` | `ARK_API_KEY` |
-| Bailian / DashScope | `sk-…` + config context `bailian` | `DASHSCOPE_API_KEY`, `BAILIAN_TOKEN_PLAN_API_KEY` |
-| Groq | `gsk_` | `GROQ_API_KEY` |
-| OpenRouter | `sk-or-` | `OPENROUTER_API_KEY` |
-| Mistral | `…` (context `mistral`) | `MISTRAL_API_KEY` |
-| Perplexity | `pplx-` | `PERPLEXITY_API_KEY` |
-| Cohere / Together / Fireworks / DeepInfra / Cerebras | `co-`, `togai-`, `fw_`, `di-`, `csk-` | matching env names |
-| Hugging Face | `hf_` | `HUGGINGFACE_API_KEY` |
-| GitHub | `ghp_`, `gho_`, `ghu_`, `ghs_`, `ghr_`, `github_pat_` | `GH_TOKEN`, `GITHUB_TOKEN` |
-| npm / PyPI | `npm_`, `pypi-` | `NPM_TOKEN`, `PYPI_TOKEN` |
-| Google OAuth | `refresh_token` + `client_id` mail in same doc | `GOOGLE_*` |
-| Azure OpenAI | `https://*.openai.azure.com` + key-length blob | `AZURE_OPENAI_API_KEY` |
-| AWS | `AKIA…` (`ASIA…` = temporary) | `AWS_ACCESS_KEY_ID` |
-| Ollama Cloud | `oll_` | `OLLAMA_API_KEY` |
-| Moonshot / GLM / MiniMax / SiliconFlow / Novita | `sk-` + context | provider from env hint/context |
-| GitHub Copilot | `gho_`/PAT in `~/.copilot` | `COPILOT_*` |
+| Provider                                             | Prefix / signature                                    | Env hints                                         |
+| ---------------------------------------------------- | ----------------------------------------------------- | ------------------------------------------------- |
+| Anthropic                                            | `sk-ant-`, `sk-ant-api03-`, `sk-ant-oat01-`           | `ANTHROPIC_API_KEY`                               |
+| OpenAI / Codex                                       | `sk-proj-`, `sk-`, `sess-`                            | `OPENAI_API_KEY`, `OPENAI_ORG_ID`                 |
+| Google AI Studio                                     | `AIza…`                                               | `GOOGLE_API_KEY`, `GEMINI_API_KEY`                |
+| xAI / Grok                                           | `xai-`                                                | `XAI_API_KEY`                                     |
+| BytePlus Ark                                         | `ark-`                                                | `ARK_API_KEY`                                     |
+| Bailian / DashScope                                  | `sk-…` + config context `bailian`                     | `DASHSCOPE_API_KEY`, `BAILIAN_TOKEN_PLAN_API_KEY` |
+| Groq                                                 | `gsk_`                                                | `GROQ_API_KEY`                                    |
+| OpenRouter                                           | `sk-or-`                                              | `OPENROUTER_API_KEY`                              |
+| Mistral                                              | `…` (context `mistral`)                               | `MISTRAL_API_KEY`                                 |
+| Perplexity                                           | `pplx-`                                               | `PERPLEXITY_API_KEY`                              |
+| Cohere / Together / Fireworks / DeepInfra / Cerebras | `co-`, `togai-`, `fw_`, `di-`, `csk-`                 | matching env names                                |
+| Hugging Face                                         | `hf_`                                                 | `HUGGINGFACE_API_KEY`                             |
+| GitHub                                               | `ghp_`, `gho_`, `ghu_`, `ghs_`, `ghr_`, `github_pat_` | `GH_TOKEN`, `GITHUB_TOKEN`                        |
+| npm / PyPI                                           | `npm_`, `pypi-`                                       | `NPM_TOKEN`, `PYPI_TOKEN`                         |
+| Google OAuth                                         | `refresh_token` + `client_id` mail in same doc        | `GOOGLE_*`                                        |
+| Azure OpenAI                                         | `https://*.openai.azure.com` + key-length blob        | `AZURE_OPENAI_API_KEY`                            |
+| AWS                                                  | `AKIA…` (`ASIA…` = temporary)                         | `AWS_ACCESS_KEY_ID`                               |
+| Ollama Cloud                                         | `oll_`                                                | `OLLAMA_API_KEY`                                  |
+| Moonshot / GLM / MiniMax / SiliconFlow / Novita      | `sk-` + context                                       | provider from env hint/context                    |
+| GitHub Copilot                                       | `gho_`/PAT in `~/.copilot`                            | `COPILOT_*`                                       |
 
 Unknown-but-credential-shaped values are stored with `provider='unknown'` + `label=<source>` so the owner can triage — never dropped silently.
 
 ### 5.4 Keychain handling (macOS)
+
 - Enumerate metadata with `security find-generic-password` / `dump-keychain` for a curated service list (`Claude Code`, `Codex`, `opencode`, `Gemini`, `Cursor`, `Copilot`, `grok`, `deepseek`, `ollama`, …) and store `{service, account, where}`; classify by account like `…api key`.
 - Secret values are read only on explicit owner reveal (re-auth required). Metadata rows are created as `SourceEvidence` without ciphertext.
 - Unlock prompt happens once per scan; if locked → scan records `status=failed`, `error_code=KEYCHAIN_LOCKED`, UI shows actionable hint.
@@ -240,7 +246,7 @@ Unknown-but-credential-shaped values are stored with `provider='unknown'` + `lab
 ## 6. Security Model
 
 - **Binding**: server listens on `127.0.0.1:<PORT>` only (default 4173).
-- **Transport**: HTTPS only (TLS 1.3, TLS 1.2 floor). Native mode runs `node:https` with a locally-issued certificate trusted in the macOS login keychain (Chrome/Safari honor it); the container runs the *same TLS-enabled image*. No plaintext listener is published — `SKP_ENABLE_HTTP_REDIRECT` may expose a loopback-only 308 redirector. Cookies are `Secure`, so an HTTP downgrade cannot yield a usable session.
+- **Transport**: HTTPS only (TLS 1.3, TLS 1.2 floor). Native mode runs `node:https` with a locally-issued certificate trusted in the macOS login keychain (Chrome/Safari honor it); the container runs the _same TLS-enabled image_. No plaintext listener is published — `SKP_ENABLE_HTTP_REDIRECT` may expose a loopback-only 308 redirector. Cookies are `Secure`, so an HTTP downgrade cannot yield a usable session.
 - **Passwords**: Argon2id (m=64MiB, t=3, p=1) + per-user salt.
 - **Vault**: master key stored as generic password in the macOS login keychain (`security add-generic-password -s SecretKeyPreview.vault`), generated with `crypto.randomBytes(32)`; fallback = Argon2id KDF over master password if keychain unavailable. Per-record envelope: `AES-256-GCM(value, iv, aad=keyId)`, auth tag verified on read (tamper → `VaultDecryptionError` → audit event).
 - **Sessions**: opaque id in httpOnly, `SameSite=Strict` cookie; server-side row; idle 30 min / absolute 12 h; rotate on password change; logout revokes; `traceId` per request.
@@ -255,32 +261,32 @@ Unknown-but-credential-shaped values are stored with `provider='unknown'` + `lab
 
 ## 7. API Contract (v1, `/api/v1`, OpenAPI 3.1 in `contracts/openapi.yaml`)
 
-| Method | Path | Purpose |
-|---|---|---|
-| GET | `/health` | liveness + build info |
-| GET | `/auth/status` | `{ needsBootstrap, methods: [password, google], googleConfigured }` |
-| POST | `/auth/bootstrap` | create owner account (master password), enable Google optional |
-| POST | `/auth/login` | password login → session cookie |
-| POST | `/auth/logout` | revoke session |
-| POST | `/auth/verify-password` | re-auth → sensitive scope |
-| GET | `/auth/google/start` | issue state+nonce+PKCE, return consent URL |
-| GET | `/auth/google/callback` | HTTPS loopback redirect handler (exchange + id_token verify + allowlist); registered URI: `https://127.0.0.1:4173/api/v1/auth/google/callback` |
-| GET/PUT | `/settings` | Google allowlist, timeouts, verify opt-in |
-| GET | `/sources` | scan registry |
-| PUT | `/sources/:id` | enable/disable, edit path/priority |
-| GET | `/providers` | provider registry (labels + docs links) |
-| GET | `/keys` | paged, filter by provider/status/source, sort by `source_mtime`/`first_seen_at` |
-| GET | `/keys/:id` | detail incl. evidence, history, masked only |
-| POST | `/keys/:id/reveal` | sensitive scope → full value once, auto-cleared after 30 s |
-| POST | `/keys/:id/verify` | opt-in live provider probe |
-| PATCH | `/keys/:id` | label, tags, archive |
-| DELETE | `/keys/:id` | delete + event |
-| GET | `/scans` | history |
-| POST | `/scans` | trigger (rate limited) |
-| GET | `/scans/:id` | run detail |
-| GET | `/scans/:id/events` | SSE progress |
-| POST | `/scans/:id/cancel` | cooperative cancel |
-| GET | `/audit` | paginated audit trail |
+| Method  | Path                    | Purpose                                                                                                                                        |
+| ------- | ----------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------- |
+| GET     | `/health`               | liveness + build info                                                                                                                          |
+| GET     | `/auth/status`          | `{ needsBootstrap, methods: [password, google], googleConfigured }`                                                                            |
+| POST    | `/auth/bootstrap`       | create owner account (master password), enable Google optional                                                                                 |
+| POST    | `/auth/login`           | password login → session cookie                                                                                                                |
+| POST    | `/auth/logout`          | revoke session                                                                                                                                 |
+| POST    | `/auth/verify-password` | re-auth → sensitive scope                                                                                                                      |
+| GET     | `/auth/google/start`    | issue state+nonce+PKCE, return consent URL                                                                                                     |
+| GET     | `/auth/google/callback` | HTTPS loopback redirect handler (exchange + id_token verify + allowlist); registered URI: `https://127.0.0.1:4173/api/v1/auth/google/callback` |
+| GET/PUT | `/settings`             | Google allowlist, timeouts, verify opt-in                                                                                                      |
+| GET     | `/sources`              | scan registry                                                                                                                                  |
+| PUT     | `/sources/:id`          | enable/disable, edit path/priority                                                                                                             |
+| GET     | `/providers`            | provider registry (labels + docs links)                                                                                                        |
+| GET     | `/keys`                 | paged, filter by provider/status/source, sort by `source_mtime`/`first_seen_at`                                                                |
+| GET     | `/keys/:id`             | detail incl. evidence, history, masked only                                                                                                    |
+| POST    | `/keys/:id/reveal`      | sensitive scope → full value once, auto-cleared after 30 s                                                                                     |
+| POST    | `/keys/:id/verify`      | opt-in live provider probe                                                                                                                     |
+| PATCH   | `/keys/:id`             | label, tags, archive                                                                                                                           |
+| DELETE  | `/keys/:id`             | delete + event                                                                                                                                 |
+| GET     | `/scans`                | history                                                                                                                                        |
+| POST    | `/scans`                | trigger (rate limited)                                                                                                                         |
+| GET     | `/scans/:id`            | run detail                                                                                                                                     |
+| GET     | `/scans/:id/events`     | SSE progress                                                                                                                                   |
+| POST    | `/scans/:id/cancel`     | cooperative cancel                                                                                                                             |
+| GET     | `/audit`                | paginated audit trail                                                                                                                          |
 
 Response envelope: `{ code, message, data, timestamp, traceId }` on success and error.
 
@@ -301,6 +307,7 @@ Response envelope: `{ code, message, data, timestamp, traceId }` on success and 
 ## 8A. Containerization (Docker) & Deployment Scripts
 
 ### 8A.0 Image design decisions
+
 - Base `node:22.14.0-bookworm-slim` (Debian/glibc), **not** Alpine/musl: `better-sqlite3` ships prebuilt glibc binaries; Alpine would force a from-source native compile on every build.
 - Multi-stage: `deps` (lockfile-only `pnpm fetch`) → `build` (web vite build + server `tsc` build + `pnpm deploy --prod`) → `runtime` (prod `node_modules` only, no compilers, non-root uid 10001).
 - Inside the container the app binds `0.0.0.0`; the **security boundary is port publishing** (`127.0.0.1:${SKP_PORT}:4173`). Never publish on `0.0.0.0` without TLS.
@@ -309,25 +316,25 @@ Response envelope: `{ code, message, data, timestamp, traceId }` on success and 
 
 ### 8A.1 Environment contract (`.env.example` will ship these)
 
-| Variable | Default | Notes |
-|---|---|---|
-| `SKP_HOST` | `127.0.0.1` (native) / `0.0.0.0` (image ENV) | bind address |
-| `SKP_PORT` | `4173` | **HTTPS** port (TLS 1.3); the app never serves plaintext on this port |
-| `SKP_DATA_DIR` | `./data` | SQLite directory; must be writable by the runtime user |
-| `SKP_DB_FILE` | `secretkeypreview.db` | database filename inside `SKP_DATA_DIR` |
-| `SKP_LOG_LEVEL` | `info` | pino level |
-| `SKP_VAULT_MASTER_KEY_FILE` | – | 32-byte base64 key; container path `/run/secrets/vault_master_key` |
-| `SKP_VAULT_MASTER_PASSWORD` | – | Argon2id seed when no keychain (never logged) |
-| `SKP_GOOGLE_CLIENT_ID` / `SKP_GOOGLE_CLIENT_SECRET` | – | OAuth loopback redirect `http://127.0.0.1:${SKP_PORT}/api/v1/auth/google/callback` |
-| `SKP_GOOGLE_ALLOWED_EMAILS` | – | comma-separated owner allowlist |
-| `SKP_VERIFY_KEYS_OPT_IN` | `false` | enable live provider probes |
-| `SKP_SCAN_ROOT` | `~` (native) / `/scan` (container) | root resolved by source registry |
-| `SKP_SESSION_IDLE_MINUTES` / `SKP_SESSION_ABSOLUTE_HOURS` | `30` / `12` | session lifetime |
-| `SKP_TLS_CERT_PATH` / `SKP_TLS_KEY_PATH` | `./certs/localhost.pem` / `./certs/localhost-key.pem` | full chain (leaf + intermediate/CA) and private key, absolute paths in `.env` |
-| `SKP_TLS_MIN_VERSION` | `TLSv1.3` | protocol floor (`TLSv1.2` fallback for old clients) |
-| `SKP_PUBLIC_ORIGIN` | `https://127.0.0.1:4173` | origin used to build the Google redirect URI, HSTS and OAuth state checks |
-| `SKP_ENABLE_HTTP_REDIRECT` | `false` | when `true`, a second **loopback-only** listener on `SKP_HTTP_REDIRECT_PORT` (4180) issues `308` → HTTPS; it never serves content |
-| `SKP_CERTS_DIR` | `./certs` | output directory of `scripts/setup-tls.sh` |
+| Variable                                                  | Default                                               | Notes                                                                                                                             |
+| --------------------------------------------------------- | ----------------------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------- |
+| `SKP_HOST`                                                | `127.0.0.1` (native) / `0.0.0.0` (image ENV)          | bind address                                                                                                                      |
+| `SKP_PORT`                                                | `4173`                                                | **HTTPS** port (TLS 1.3); the app never serves plaintext on this port                                                             |
+| `SKP_DATA_DIR`                                            | `./data`                                              | SQLite directory; must be writable by the runtime user                                                                            |
+| `SKP_DB_FILE`                                             | `secretkeypreview.db`                                 | database filename inside `SKP_DATA_DIR`                                                                                           |
+| `SKP_LOG_LEVEL`                                           | `info`                                                | pino level                                                                                                                        |
+| `SKP_VAULT_MASTER_KEY_FILE`                               | –                                                     | 32-byte base64 key; container path `/run/secrets/vault_master_key`                                                                |
+| `SKP_VAULT_MASTER_PASSWORD`                               | –                                                     | Argon2id seed when no keychain (never logged)                                                                                     |
+| `SKP_GOOGLE_CLIENT_ID` / `SKP_GOOGLE_CLIENT_SECRET`       | –                                                     | OAuth loopback redirect `http://127.0.0.1:${SKP_PORT}/api/v1/auth/google/callback`                                                |
+| `SKP_GOOGLE_ALLOWED_EMAILS`                               | –                                                     | comma-separated owner allowlist                                                                                                   |
+| `SKP_VERIFY_KEYS_OPT_IN`                                  | `false`                                               | enable live provider probes                                                                                                       |
+| `SKP_SCAN_ROOT`                                           | `~` (native) / `/scan` (container)                    | root resolved by source registry                                                                                                  |
+| `SKP_SESSION_IDLE_MINUTES` / `SKP_SESSION_ABSOLUTE_HOURS` | `30` / `12`                                           | session lifetime                                                                                                                  |
+| `SKP_TLS_CERT_PATH` / `SKP_TLS_KEY_PATH`                  | `./certs/localhost.pem` / `./certs/localhost-key.pem` | full chain (leaf + intermediate/CA) and private key, absolute paths in `.env`                                                     |
+| `SKP_TLS_MIN_VERSION`                                     | `TLSv1.3`                                             | protocol floor (`TLSv1.2` fallback for old clients)                                                                               |
+| `SKP_PUBLIC_ORIGIN`                                       | `https://127.0.0.1:4173`                              | origin used to build the Google redirect URI, HSTS and OAuth state checks                                                         |
+| `SKP_ENABLE_HTTP_REDIRECT`                                | `false`                                               | when `true`, a second **loopback-only** listener on `SKP_HTTP_REDIRECT_PORT` (4180) issues `308` → HTTPS; it never serves content |
+| `SKP_CERTS_DIR`                                           | `./certs`                                             | output directory of `scripts/setup-tls.sh`                                                                                        |
 
 ### 8A.2 Files to create
 
@@ -500,7 +507,7 @@ services:
         - CMD
         - node
         - -e
-        - "const p=process.env.SKP_PORT||4173;fetch('http://127.0.0.1:'+p+'/health').then(r=>process.exit(r.ok?0:1)).catch(()=>process.exit(1))"
+        - "const p=process.env.SKP_PORT||4173;require('node:https').get('https://127.0.0.1:'+p+'/api/v1/health',{rejectUnauthorized:false},r=>process.exit(r.statusCode===200?0:1)).on('error',()=>process.exit(1))"
       interval: 30s
       timeout: 5s
       retries: 3
@@ -927,6 +934,7 @@ flowchart TB
 ```
 
 ### 8A.5 Deployment risks carried by the plan
+
 - `.env` and the vault key travel over SSH in `deploy.sh remote` — transport is encrypted, but the remote `.env` must stay at mode `600` (script enforces `chmod 600` for the key file; `.env` is documented as operator-owned).
 - Keychain scanning is degraded in container mode; the owner's primary workflow stays native (`pnpm dev`), the container is for reproducible self-hosting, CI smoke tests, and air-gapped installs.
 - Losing `vault_master_key` makes every stored ciphertext permanently unrecoverable — the script prints a backup warning on every local deploy.
@@ -934,6 +942,7 @@ flowchart TB
 ## 9. Implementation Phases (execution order)
 
 ### Phase 0 — Scaffolding & contracts (no features yet)
+
 - pnpm workspace, TS strict, ESLint/Prettier, Vitest config, `.env.example`, `.gitignore`, CI (lint + test + build + gitleaks), dedicated `git init`.
 - **Contract-first**: author `contracts/openapi.yaml` + shared zod schemas; server emits same OpenAPI for verification; web consumes generated types.
 - Drizzle schema + first migration (users, sessions, sources, providers seed) + rollback SQL.
@@ -941,17 +950,20 @@ flowchart TB
 - **DoD**: `pnpm dev` serves `/health`; contract tests compare emitted OpenAPI to checked-in file; error envelope test passes.
 
 ### Phase 1 — Authentication
+
 - Bootstrap, password login (Argon2id), sessions (rotation, idle/absolute expiry, revocation), re-auth scope, rate limiting, audit events.
 - Google OAuth loopback: start/callback, id_token verification (iss, aud, nonce, exp, email_verified), owner allowlist enforcement, account linking.
 - Frontend `/login` + auth store + route guard + bootstrap flow.
 - **DoD**: integration tests (password path, google happy path with mocked token endpoint, rejected non-allowlisted email, expired session, re-auth TTL).
 
 ### Phase 2 — Vault & persistence
+
 - Keychain-backed master key + Argon2id fallback, envelope encryption/decryption helpers, fingerprint utilities.
 - `api_keys` + `key_events` repositories; masked-value renderer; re-auth gate plugin.
 - **DoD**: crypto round-trip, tamper detection, redaction tests.
 
 ### Phase 3 — Scanner engine
+
 - Source registry + parsers + classifier + orchestrator + SSE progress + cancel; env file runner; raw-regex runner.
 - Keychain metadata runner (macOS).
 - Scan run persistence + diffing (new/changed/removed) + `key_events`.
@@ -959,14 +971,17 @@ flowchart TB
 - **DoD**: fixture-based scanner tests per parser and per provider prefix; run against real Mac in "dry-run" mode yields keys for ≥ 15 known sources; cancel test.
 
 ### Phase 4 — Key management & verification (opt-in)
+
 - Reveal (re-auth), verify (provider probe with timeout/error classification), label/tag/archive/delete, evidence timeline, audit page.
 - **DoD**: reveal blocked without sensitive scope; verify handles 401/429/timeout distinctly; audit page renders.
 
 ### Phase 5 — Hardening & polish
+
 - CSP/helmet config, TLS optional path, settings UI (allowlist, paths, timeouts, verify opt-in, change master password, export audit JSON), empty/loading/error states, mobile pass.
 - **DoD**: pre-deploy checklist (see §11) all green; accessibility smoke pass.
 
 ### Phase 7 — Documentation deliverables (mandatory per `AGENTS.md` §4)
+
 - `docs/SPECIFICATION.md`, `FUNCTION_SPEC.md`, `INFRASTRUCTURE.md`, `DIAGRAMS.md` (sequence + component + state), `TESTING.md` (unit cases + functional matrix table).
 
 ---
@@ -1046,6 +1061,7 @@ flowchart LR
 ## 11. Verification Plan
 
 **Automated (CI + local)**
+
 ```bash
 # /Users/wongchimanjack/github/secretkeypreview
 pnpm install                 # workspace install
@@ -1063,50 +1079,52 @@ make deploy-local                # compose up + healthcheck wait
 make deploy-remote               # REMOTE_HOST=user@host ./scripts/deploy.sh remote
 make status && make logs
 ```
+
 E2E (optional, `pnpm --filter web e2e`): Playwright bootstraps against `SECRET_KEY_PREVIEW_SCAN_ROOT=./fixtures/home` (fixture copies, fake keys), logs in, triggers scan, asserts dashboard rows, provider filter, masked reveal gating.
 
 **Manual, owner machine**
+
 1. `pnpm dev` → backend `127.0.0.1:4173`, frontend `127.0.0.1:5173`.
 2. Docker path: `make deploy-local` → container healthy on `127.0.0.1:4173`, `docker compose ps` shows `app (healthy)`; confirm the SQLite file exists in the `skp-data` volume and that the read-only rootfs only writes to `/data` and `/tmp`.
 3. Bootstrap owner account.
-3. Google sign-in with owner account; sign-in with a non-allowlisted Google account → denied + audit entry.
-4. Trigger scan; confirm the ≥15 real sources in §5.1 appear, keychain metadata section appears (unlock once if needed).
-5. Verify dashboard columns: provider, masked key, source path, date added (compare with `ls -l@` mtimes).
-6. Reveal one key → value matches `security` / file content exactly; confirm auto-hide ≤30 s and audit event recorded.
-7. Opt-in verify one Anthropic key → status flips to valid.
-8. Idle 30 min → next request 401; password change revokes other sessions.
-9. `grep -R` logs for any plaintext key → none found.
+4. Google sign-in with owner account; sign-in with a non-allowlisted Google account → denied + audit entry.
+5. Trigger scan; confirm the ≥15 real sources in §5.1 appear, keychain metadata section appears (unlock once if needed).
+6. Verify dashboard columns: provider, masked key, source path, date added (compare with `ls -l@` mtimes).
+7. Reveal one key → value matches `security` / file content exactly; confirm auto-hide ≤30 s and audit event recorded.
+8. Opt-in verify one Anthropic key → status flips to valid.
+9. Idle 30 min → next request 401; password change revokes other sessions.
+10. `grep -R` logs for any plaintext key → none found.
 
 **Test matrix sample** (full table in `docs/TESTING.md`)
 
-| Test Case ID | Scenario | Preconditions | Input Payload | Expected Status & Response | Pass/Fail Criteria |
-|---|---|---|---|---|---|
-| AUTH-01 | Bootstrap owner | DB empty, no user | `POST /auth/bootstrap` `{email, "Pw!…"}` | 201, session cookie | Argon2id hash stored (not plaintext) |
-| AUTH-02 | Wrong password | User exists | `POST /auth/login` bad pw | 401 `INVALID_CREDENTIALS` | Rate-limit counter incremented |
-| AUTH-03 | Google allowed | allowlisted email | mocked id_token | 200, session linked | `google_identities` row created |
-| AUTH-04 | Google not allowed | other email | mocked id_token | 403 `GOOGLE_ACCOUNT_NOT_ALLOWED` | Audit `login_denied` |
-| SCAN-01 | `.zshrc` export found | fixture home | `POST /scans` | 200, run completed | Row provider=anthropic, source=shell-env |
-| SCAN-02 | Dedupe | same key in 2 files | second scan | new_count=0 | fingerprint deduped |
-| SCAN-03 | Removed key | fixture key deleted | scan | status=removed | `key_events.type=removed` |
-| SCAN-04 | Keychain locked | locked keychain | scan | failed `KEYCHAIN_LOCKED` | No plaintext in logs |
-| KEY-01 | Reveal w/o re-auth | session only | `POST /keys/:id/reveal` | 403 `SENSITIVE_SCOPE_REQUIRED` | No ciphertext returned |
-| KEY-02 | Reveal after re-auth | sensitive scope | reveal | 200 value | Matches source value exactly |
-| KEY-03 | Verify 401 | invalid key, opt-in | verify | status=invalid | Distinct from 429/timeout |
+| Test Case ID | Scenario              | Preconditions       | Input Payload                            | Expected Status & Response       | Pass/Fail Criteria                       |
+| ------------ | --------------------- | ------------------- | ---------------------------------------- | -------------------------------- | ---------------------------------------- |
+| AUTH-01      | Bootstrap owner       | DB empty, no user   | `POST /auth/bootstrap` `{email, "Pw!…"}` | 201, session cookie              | Argon2id hash stored (not plaintext)     |
+| AUTH-02      | Wrong password        | User exists         | `POST /auth/login` bad pw                | 401 `INVALID_CREDENTIALS`        | Rate-limit counter incremented           |
+| AUTH-03      | Google allowed        | allowlisted email   | mocked id_token                          | 200, session linked              | `google_identities` row created          |
+| AUTH-04      | Google not allowed    | other email         | mocked id_token                          | 403 `GOOGLE_ACCOUNT_NOT_ALLOWED` | Audit `login_denied`                     |
+| SCAN-01      | `.zshrc` export found | fixture home        | `POST /scans`                            | 200, run completed               | Row provider=anthropic, source=shell-env |
+| SCAN-02      | Dedupe                | same key in 2 files | second scan                              | new_count=0                      | fingerprint deduped                      |
+| SCAN-03      | Removed key           | fixture key deleted | scan                                     | status=removed                   | `key_events.type=removed`                |
+| SCAN-04      | Keychain locked       | locked keychain     | scan                                     | failed `KEYCHAIN_LOCKED`         | No plaintext in logs                     |
+| KEY-01       | Reveal w/o re-auth    | session only        | `POST /keys/:id/reveal`                  | 403 `SENSITIVE_SCOPE_REQUIRED`   | No ciphertext returned                   |
+| KEY-02       | Reveal after re-auth  | sensitive scope     | reveal                                   | 200 value                        | Matches source value exactly             |
+| KEY-03       | Verify 401            | invalid key, opt-in | verify                                   | status=invalid                   | Distinct from 429/timeout                |
 
 ---
 
 ## 12. Risks & Mitigations
 
-| Risk | Mitigation |
-|---|---|
-| Real secrets leaked into repo/logs | redaction in logger + tests, gitleaks CI, `.gitignore`, fake fixtures only |
-| Scanning very large config dirs / sqlite blobs | bounded file size (≤ 4 MB), skips `*.sqlite*`/`history.jsonl` unless explicitly enabled, bounded concurrency, cancel support |
-| False positives (e.g. long tokens that are not keys) | store as `provider=unknown` for triage, never delete silently, provider prefix table anchored first |
-| Keychain prompts / locked | metadata-only enumeration; failure recorded as informative scan error |
-| Google OAuth consent screen "unverified app" | owner self-use; Publishing status stays internal testing (owner email as test user) |
-| Home-dir git repo entanglement | fresh dedicated repo inside project dir; no `HOME` nesting of VCS |
-| Session theft on shared Mac | short idle timeout, binding to `127.0.0.1`, absolute expiry, rotate on privilege change |
-| Non-owner laptop usage (shared household) | no remote binding, local files only, audit log of every reveal |
+| Risk                                                 | Mitigation                                                                                                                   |
+| ---------------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------- |
+| Real secrets leaked into repo/logs                   | redaction in logger + tests, gitleaks CI, `.gitignore`, fake fixtures only                                                   |
+| Scanning very large config dirs / sqlite blobs       | bounded file size (≤ 4 MB), skips `*.sqlite*`/`history.jsonl` unless explicitly enabled, bounded concurrency, cancel support |
+| False positives (e.g. long tokens that are not keys) | store as `provider=unknown` for triage, never delete silently, provider prefix table anchored first                          |
+| Keychain prompts / locked                            | metadata-only enumeration; failure recorded as informative scan error                                                        |
+| Google OAuth consent screen "unverified app"         | owner self-use; Publishing status stays internal testing (owner email as test user)                                          |
+| Home-dir git repo entanglement                       | fresh dedicated repo inside project dir; no `HOME` nesting of VCS                                                            |
+| Session theft on shared Mac                          | short idle timeout, binding to `127.0.0.1`, absolute expiry, rotate on privilege change                                      |
+| Non-owner laptop usage (shared household)            | no remote binding, local files only, audit log of every reveal                                                               |
 
 ---
 
@@ -1120,7 +1138,7 @@ E2E (optional, `pnpm --filter web e2e`): Playwright bootstraps against `SECRET_K
 
 ---
 
-*Note on process: exploration was performed directly with read-only shell inspection (no source files existed to read; the scan-source registry in §5.1 was derived from the agent configs actually present on this Mac). No files were modified except this plan.*
+_Note on process: exploration was performed directly with read-only shell inspection (no source files existed to read; the scan-source registry in §5.1 was derived from the agent configs actually present on this Mac). No files were modified except this plan._
 
 ---
 
@@ -1129,22 +1147,24 @@ E2E (optional, `pnpm --filter web e2e`): Playwright bootstraps against `SECRET_K
 Everything in sections 1–13 has been implemented, running on this Mac, and verified.
 
 ### 14.1 What was built
-| Plan item | Status | Notes |
-|---|---|---|
-| HTTPS-only transport (TLS 1.3, secured cookies) | Done | `scripts/setup-tls.sh` issues a local CA + leaf cert and trusts it in the login keychain (mkcert preferred, openssl fallback) |
-| Master-password auth (scrypt) + Google loopback OAuth (PKCE + JWKS id_token verification + owner allow-list) | Done | see `docs/FUNCTION_SPEC.md` §2 |
-| Scan-source registry grounded in this Mac's real agent configs | Done | 32 sources; real scan discovers 172 items (incl. keychain metadata) |
-| Parsers (JSON/JSONC, YAML, TOML, dotenv, raw regex, keychain metadata) | Done | `packages/server/src/infra/scanner/parsers.ts` |
-| Provider classifier with documented precedence | Done | prefix → env/key hint → source hint → key-name; 30 providers |
-| Encrypted vault (AES-256-GCM), masked lists, gated reveal, audit trail | Done | key in macOS keychain / key file / passphrase KDF |
-| Dashboard / detail / scans / settings / audit React SPA | Done | Vite + Tailwind, TanQuery Query, SSE progress |
-| `contracts/openapi.yaml` + shared zod contracts package | Done | `@skp/contracts` is the single type source for server + web |
-| Dockerfile, compose stack, entrypoint, nginx TLS profile | Done | Debian-slim, uid 10001, read-only rootfs |
-| `scripts/build-docker.sh`, `deploy.sh`, `scan-check.sh`, `setup-tls.sh` | Done | local / remote / rollback / smoke test |
-| Docs deliverables (SPEC, FUNCTION, INFRA, DIAGRAMS, TESTING) | Done | `docs/` |
-| Tests | Done | 34 server tests + 5 frontend tests + `scan-check.sh` |
+
+| Plan item                                                                                                    | Status | Notes                                                                                                                               |
+| ------------------------------------------------------------------------------------------------------------ | ------ | ----------------------------------------------------------------------------------------------------------------------------------- |
+| HTTPS-only transport (TLS 1.3, secured cookies)                                                              | Done   | `scripts/setup-tls.sh` issues a local CA + leaf cert and trusts it in the login keychain (mkcert preferred, openssl fallback)       |
+| Master-password auth (scrypt) + Google loopback OAuth (PKCE + JWKS id_token verification + owner allow-list) | Done   | see `docs/FUNCTION_SPEC.md` §2                                                                                                      |
+| Scan-source registry grounded in this Mac's real agent configs                                               | Done   | 43 sources; a real scan finds every CLI credential on this Mac (arkcli, qwen, kimi, opencode, openclaw, hermes, pi, grok, deepseek) |
+| Parsers (JSON/JSONC, YAML, TOML, dotenv, raw regex, keychain metadata)                                       | Done   | `packages/server/src/infra/scanner/parsers.ts`                                                                                      |
+| Provider classifier with documented precedence                                                               | Done   | prefix → pointer/name token → sibling context → source hint → env hint; 34 providers, strongest evidence wins across homes          |
+| Encrypted vault (AES-256-GCM), masked lists, gated reveal, audit trail                                       | Done   | key in macOS keychain / key file / passphrase KDF                                                                                   |
+| Dashboard / detail / scans / settings / audit React SPA                                                      | Done   | Vite + Tailwind, TanQuery Query, SSE progress                                                                                       |
+| `contracts/openapi.yaml` + shared zod contracts package                                                      | Done   | `@skp/contracts` is the single type source for server + web                                                                         |
+| Dockerfile, compose stack, entrypoint, nginx TLS profile                                                     | Done   | Debian-slim, uid 10001, read-only rootfs                                                                                            |
+| `scripts/build-docker.sh`, `deploy.sh`, `scan-check.sh`, `setup-tls.sh`                                      | Done   | local / remote / rollback / smoke test                                                                                              |
+| Docs deliverables (SPEC, FUNCTION, INFRA, DIAGRAMS, TESTING)                                                 | Done   | `docs/`                                                                                                                             |
+| Tests                                                                                                        | Done   | 34 server tests + 5 frontend tests + `scan-check.sh`                                                                                |
 
 ### 14.2 Verified end-to-end on this machine
+
 `scripts/scan-check.sh` → **ALL CHECKS PASSED** (bootstrap, unauthenticated
 rejection, scan of 4 fixture keys, provider classification, reveal gating,
 reveal value, audit trail). A native run against the real `$HOME` discovered 172
@@ -1152,6 +1172,7 @@ items and decrypted one BytePlus ARK key after re-authentication, exactly
 matching the source file.
 
 ### 14.3 Deliberate deviations from §2/§4 of this plan (and why)
+
 1. **`node:sqlite` instead of Drizzle + better-sqlite3.** Drizzle's node-sqlite
    driver coverage was uncertain for Node 26, and better-sqlite3 would need a
    native compile. Node's built-in SQLite gives the same guarantees (WAL, foreign
@@ -1169,6 +1190,7 @@ matching the source file.
    agent configs + Keychain) is materially simpler in Node, as analysed in §2.
 
 ### 14.4 Owner decisions still open (from §13)
+
 Default answers used: port 4173, English UI, soft-archive + hard delete both
 available, manual scan trigger (schedules can be added later), Google allow-list
 configurable in Settings. Change any of these in Settings or by editing

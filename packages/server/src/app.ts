@@ -32,7 +32,9 @@ export interface BuildAppOptions {
   tls?: TlsOptions;
 }
 
-export async function buildApp(options: BuildAppOptions): Promise<FastifyInstance> {
+export async function buildApp(
+  options: BuildAppOptions,
+): Promise<FastifyInstance> {
   const app = Fastify({
     logger: fastifyLoggerConfig(),
     genReqId: () => randomUUID(),
@@ -65,7 +67,10 @@ export async function buildApp(options: BuildAppOptions): Promise<FastifyInstanc
 
   const webDist = resolve(import.meta.dirname, "../../web/dist");
   if (existsSync(webDist)) {
-    await app.register(staticPlugin, { root: webDist, prefix: "/", decorateReply: false });
+    await app.register(staticPlugin, {
+      root: webDist,
+      prefix: "/",
+    });
   }
 
   return app;

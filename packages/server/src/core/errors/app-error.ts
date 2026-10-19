@@ -4,7 +4,12 @@ export class AppError extends Error {
   readonly code: string;
   readonly data: unknown;
 
-  constructor(statusCode: number, code: string, message: string, data?: unknown) {
+  constructor(
+    statusCode: number,
+    code: string,
+    message: string,
+    data?: unknown,
+  ) {
     super(message);
     this.name = new.target.name;
     this.statusCode = statusCode;
@@ -39,7 +44,11 @@ export class ForbiddenError extends AppError {
 
 export class SensitiveScopeRequiredError extends AppError {
   constructor() {
-    super(403, "SENSITIVE_SCOPE_REQUIRED", "Re-authentication required for sensitive operations");
+    super(
+      403,
+      "SENSITIVE_SCOPE_REQUIRED",
+      "Re-authentication required for sensitive operations",
+    );
   }
 }
 
@@ -63,7 +72,11 @@ export class RateLimitedError extends AppError {
 
 export class GoogleNotAllowedError extends AppError {
   constructor() {
-    super(403, "GOOGLE_ACCOUNT_NOT_ALLOWED", "This Google account is not the owner account");
+    super(
+      403,
+      "GOOGLE_ACCOUNT_NOT_ALLOWED",
+      "This Google account is not the owner account",
+    );
   }
 }
 

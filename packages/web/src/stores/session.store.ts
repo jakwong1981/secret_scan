@@ -19,7 +19,11 @@ export const useSessionStore = create<SessionState>((set, get) => ({
   sensitiveUntil: null,
 
   setUser: (user, method = null) =>
-    set({ user, method: user ? method ?? get().method : null, sensitiveUntil: null }),
+    set({
+      user,
+      method: user ? (method ?? get().method) : null,
+      sensitiveUntil: null,
+    }),
 
   grantSensitive: (until) => set({ sensitiveUntil: until }),
 

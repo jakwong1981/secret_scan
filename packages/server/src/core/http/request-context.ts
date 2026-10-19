@@ -24,7 +24,10 @@ export function clientUserAgent(request: FastifyRequest): string | undefined {
   return typeof agent === "string" ? agent : undefined;
 }
 
-export function sessionCookie(request: FastifyRequest, reply: FastifyReply): string | undefined {
+export function sessionCookie(
+  request: FastifyRequest,
+  reply: FastifyReply,
+): string | undefined {
   void reply;
   return request.cookies["skp_session"];
 }

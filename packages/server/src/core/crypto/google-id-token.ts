@@ -22,9 +22,13 @@ let jwksCache: { fetchedAt: number; keys: GoogleJwk[] } | null = null;
 const JWKS_TTL_MS = 10 * 60_000;
 
 async function fetchJwks(): Promise<GoogleJwk[]> {
-  if (jwksCache && Date.now() - jwksCache.fetchedAt < JWKS_TTL_MS) return jwksCache.keys;
-  const response = await fetch(JWKS_URL, { headers: { accept: "application/json" } });
-  if (!response.ok) throw new UnauthenticatedError("Could not fetch Google signing keys");
+  if (jwksCache && Date.now() - jwksCache.fetchedAt < JWKS_TTL_MS)
+    return jwksCache.keys;
+  const response = await fetch(JWKS_URL, {
+    headers: { accept: "application/json" },
+  });
+  if (!response.ok)
+    throw new UnauthenticatedError("Could not fetch Google signing keys");
   const body = (await response.json()) as Jwks;
   jwksCache = { fetchedAt: Date.now(), keys: body.keys };
   return body.keys;
@@ -48,14 +52,23 @@ export async function verifyGoogleIdToken(
   idToken: string,
   expectedNonce: string,
 ): Promise<GoogleIdTokenClaims> {
-  if (!env.SKP_GOOGLE_CLIENT_ID) throw new UnauthenticatedError("Google sign-in is not configured");
+  if (!env.SKP_GOOGLE_CLIENT_ID)
+    throw new UnauthenticatedError("Google sign-in is not configured");
 
   const parts = idToken.split(".");
   if (parts.length !== 3) throw new UnauthenticatedError("Malformed ID token");
-  const [rawHeader, rawPayload, rawSignature] = parts as [string, string, string];
+  const [rawHeader, rawPayload, rawSignature] = parts as [
+    string,
+    string,
+    string,
+  ];
 
-  const header = JSON.parse(decodeSegment(rawHeader)) as { alg?: string; kid?: string };
-  if (header.alg !== "RS256" || !header.kid) throw new UnauthenticatedError("Unsupported ID token header");
+  const header = JSON.parse(decodeSegment(rawHeader)) as {
+    alg?: string;
+    kid?: string;
+  };
+  if (header.alg !== "RS256" || !header.kid)
+    throw new UnauthenticatedError("Unsupported ID token header");
 
   const keys = await fetchJwks();
   const jwk = keys.find((key) => key.kid === header.kid);
@@ -68,10 +81,16 @@ export async function verifyGoogleIdToken(
     throw new UnauthenticatedError("ID token signature check failed");
   }
 
-  const claims = JSON.parse(decodeSegment(rawPayload)) as Record<string, unknown>;
+  const claims = JSON.parse(decodeSegment(rawPayload)) as Record<
+    string,
+    unknown
+  >;
   const nowSeconds = Math.floor(Date.now() / 1000);
 
-  if (typeof claims.aud !== "string" || claims.aud !== env.SKP_GOOGLE_CLIENT_ID) {
+  if (
+    typeof claims.aud !== "string" ||
+    claims.aud !== env.SKP_GOOGLE_CLIENT_ID
+  ) {
     throw new UnauthenticatedError("ID token audience mismatch");
   }
   if (typeof claims.iss !== "string" || !VALID_ISSUERS.includes(claims.iss)) {
@@ -125,7 +144,10 @@ export async function exchangeGoogleCode(input: {
 
   const response = await fetch("https://oauth2.googleapis.com/token", {
     method: "POST",
-    headers: { "content-type": "application/x-www-form-urlencoded", accept: "application/json" },
+    headers: {
+      "content-type": "application/x-www-form-urlencoded",
+      accept: "application/json",
+    },
     body,
   });
 

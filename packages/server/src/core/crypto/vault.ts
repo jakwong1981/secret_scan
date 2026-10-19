@@ -1,4 +1,9 @@
-import { createCipheriv, createDecipheriv, randomBytes, scryptSync } from "node:crypto";
+import {
+  createCipheriv,
+  createDecipheriv,
+  randomBytes,
+  scryptSync,
+} from "node:crypto";
 import { readFileSync } from "node:fs";
 import { execFileSync } from "node:child_process";
 import { env } from "../../config/env.js";
@@ -59,7 +64,11 @@ export function resolveMasterKey(): Buffer {
     const raw = readFileSync(env.SKP_VAULT_MASTER_KEY_FILE, "utf8").trim();
     const key = Buffer.from(raw, "base64");
     if (key.length !== 32) {
-      throw new AppError(500, "VAULT_KEY_INVALID", "Vault master key file must contain 32 base64 bytes");
+      throw new AppError(
+        500,
+        "VAULT_KEY_INVALID",
+        "Vault master key file must contain 32 base64 bytes",
+      );
     }
     return key;
   }
@@ -93,9 +102,14 @@ export function masterKey(): Buffer {
 
 export function encryptSecret(plaintext: string): CipherEnvelope {
   const iv = randomBytes(IV_BYTES);
-  const cipher = createCipheriv(ALGORITHM, masterKey(), iv, { authTagLength: 16 });
+  const cipher = createCipheriv(ALGORITHM, masterKey(), iv, {
+    authTagLength: 16,
+  });
   cipher.setAAD(Buffer.from(AAD, "utf8"));
-  const cipherText = Buffer.concat([cipher.update(plaintext, "utf8"), cipher.final()]);
+  const cipherText = Buffer.concat([
+    cipher.update(plaintext, "utf8"),
+    cipher.final(),
+  ]);
   return {
     cipherText: cipherText.toString("base64"),
     iv: iv.toString("base64"),
@@ -118,7 +132,11 @@ export function decryptSecret(envelope: CipherEnvelope): string {
       decipher.final(),
     ]).toString("utf8");
   } catch {
-    throw new AppError(500, "VAULT_DECRYPTION_ERROR", "Stored value could not be decrypted");
+    throw new AppError(
+      500,
+      "VAULT_DECRYPTION_ERROR",
+      "Stored value could not be decrypted",
+    );
   }
 }
 

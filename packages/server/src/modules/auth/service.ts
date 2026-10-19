@@ -8,6 +8,7 @@ import {
   findUserByEmail,
   findUserById,
   linkGoogleIdentity,
+  listUsers,
   touchLastLogin,
   updatePasswordHash,
   userMethods,
@@ -23,7 +24,10 @@ import {
   touchSession,
 } from "../../infra/db/repositories/session.repository.js";
 import { recordAudit } from "../../infra/db/repositories/audit.repository.js";
-import { allowedGoogleEmails, sessionLimits } from "../../infra/db/repositories/settings.repository.js";
+import {
+  allowedGoogleEmails,
+  sessionLimits,
+} from "../../infra/db/repositories/settings.repository.js";
 import {
   clearFailedAttempts,
   isLockedOut,
@@ -35,7 +39,10 @@ import {
   purgeExpiredOauthChallenges,
 } from "../../infra/db/repositories/oauth-state.repository.js";
 import { hashPassword, verifyPassword } from "../../core/crypto/password.js";
-import { exchangeGoogleCode, verifyGoogleIdToken } from "../../core/crypto/google-id-token.js";
+import {
+  exchangeGoogleCode,
+  verifyGoogleIdToken,
+} from "../../core/crypto/google-id-token.js";
 import { env, googleRedirectUri } from "../../config/env.js";
 import {
   ConflictError,
@@ -54,6 +61,11 @@ export interface AuthUserView {
   methods: Array<"password" | "google">;
 }
 
+export interface UserListItemView extends AuthUserView {
+  createdAt: string;
+  lastLoginAt: string | null;
+}
+
 export interface SessionContext {
   session: SessionRow;
   user: UserRow;
@@ -67,19 +79,78 @@ export function needsBootstrap(db: Db): boolean {
   return countUsers(db) === 0;
 }
 
+/**
+ * Self-service signup: anyone who can reach the port may create a password
+ * account, and every account previews the same vault. The port is therefore
+ * the trust boundary (loopback + TLS by default).
+ */
+export function register(
+  db: Db,
+  input: { email: string; masterPassword: string; confirmPassword: string },
+): AuthUserView {
+  if (!env.SKP_ENABLE_REGISTRATION) {
+    throw new ForbiddenError(
+      "REGISTRATION_DISABLED",
+      "Registration is disabled on this server",
+    );
+  }
+  if (input.masterPassword !== input.confirmPassword) {
+    throw new ValidationError("Passwords do not match");
+  }
+  if (input.masterPassword.length < env.SKP_PASSWORD_MIN_LENGTH) {
+    throw new ValidationError(
+      `Password must be at least ${env.SKP_PASSWORD_MIN_LENGTH} characters`,
+    );
+  }
+  const email = input.email.trim().toLowerCase();
+  if (findUserByEmail(db, email)) {
+    throw new ConflictError("Email already registered", "EMAIL_TAKEN");
+  }
+  const user = createUser(db, {
+    email,
+    passwordHash: hashPassword(input.masterPassword),
+  });
+  logger.info({ userId: user.id }, "account created");
+  return { id: user.id, email: user.email, methods: userMethods(db, user) };
+}
+
+export function listUserViews(db: Db): UserListItemView[] {
+  return listUsers(db).map((user) => ({
+    id: user.id,
+    email: user.email,
+    methods: userMethods(db, user),
+    createdAt: user.created_at,
+    lastLoginAt: user.last_login_at,
+  }));
+}
+
 function base64UrlSha256(value: string): string {
   return createHash("sha256").update(value).digest("base64url");
 }
 
 export function bootstrap(
   db: Db,
-  input: { email: string; masterPassword: string; ip?: string; userAgent?: string },
+  input: {
+    email: string;
+    masterPassword: string;
+    ip?: string;
+    userAgent?: string;
+  },
 ): SessionContext {
-  if (!needsBootstrap(db)) throw new ConflictError("Owner account already exists", "ALREADY_BOOTSTRAPPED");
+  if (!needsBootstrap(db))
+    throw new ConflictError(
+      "Owner account already exists",
+      "ALREADY_BOOTSTRAPPED",
+    );
   if (input.masterPassword.length < env.SKP_PASSWORD_MIN_LENGTH) {
-    throw new ValidationError(`Master password must be at least ${env.SKP_PASSWORD_MIN_LENGTH} characters`);
+    throw new ValidationError(
+      `Master password must be at least ${env.SKP_PASSWORD_MIN_LENGTH} characters`,
+    );
   }
-  const user = createUser(db, { email: input.email, passwordHash: hashPassword(input.masterPassword) });
+  const user = createUser(db, {
+    email: input.email,
+    passwordHash: hashPassword(input.masterPassword),
+  });
   const limits = sessionLimits(db);
   const session = createSession(db, {
     userId: user.id,
@@ -94,11 +165,20 @@ export function bootstrap(
 
 export function login(
   db: Db,
-  input: { email: string; masterPassword: string; ip?: string; userAgent?: string },
+  input: {
+    email: string;
+    masterPassword: string;
+    ip?: string;
+    userAgent?: string;
+  },
 ): SessionContext {
   if (isLockedOut(db, input.email, input.ip)) throw new RateLimitedError();
   const user = findUserByEmail(db, input.email);
-  if (!user || !user.password_hash || !verifyPassword(input.masterPassword, user.password_hash)) {
+  if (
+    !user ||
+    !user.password_hash ||
+    !verifyPassword(input.masterPassword, user.password_hash)
+  ) {
     recordLoginAttempt(db, { email: input.email, ip: input.ip, ok: false });
     throw new InvalidCredentialsError();
   }
@@ -120,18 +200,27 @@ export function logout(db: Db, sessionId: string): void {
   revokeSession(db, sessionId);
 }
 
-export function reauthenticate(db: Db, input: { sessionId: string; masterPassword: string }): Date {
+export function reauthenticate(
+  db: Db,
+  input: { sessionId: string; masterPassword: string },
+): Date {
   const session = findSessionById(db, input.sessionId);
   if (!session) throw new UnauthenticatedError();
   const user = findUserById(db, session.user_id);
-  if (!user?.password_hash || !verifyPassword(input.masterPassword, user.password_hash)) {
+  if (
+    !user?.password_hash ||
+    !verifyPassword(input.masterPassword, user.password_hash)
+  ) {
     throw new InvalidCredentialsError();
   }
   return grantSensitiveScope(db, session.id, 5);
 }
 
 /** Synchronous resolution used by the auth guard (preHandler may stay sync). */
-export function resolveSession(db: Db, sessionId: string | undefined | null): SessionContext | null {
+export function resolveSession(
+  db: Db,
+  sessionId: string | undefined | null,
+): SessionContext | null {
   if (!sessionId) return null;
   const session = findSessionById(db, sessionId);
   if (!session || !isSessionUsable(session)) return null;
@@ -140,17 +229,25 @@ export function resolveSession(db: Db, sessionId: string | undefined | null): Se
   return { session, user };
 }
 
-export function touchForRequest(db: Db, context: SessionContext): SessionContext {
+export function touchForRequest(
+  db: Db,
+  context: SessionContext,
+): SessionContext {
   const limits = sessionLimits(db);
   const session = touchSession(db, context.session, limits.idleMinutes);
   return { session, user: context.user };
 }
 
 export function assertSensitiveScope(session: SessionRow): void {
-  if (!hasSensitiveScope(session)) throw new UnauthenticatedError("re-authentication required");
+  if (!hasSensitiveScope(session))
+    throw new UnauthenticatedError("re-authentication required");
 }
 
-export function startGoogleAuth(db: Db): { authorizationUrl: string; state: string; expiresAt: Date } {
+export function startGoogleAuth(db: Db): {
+  authorizationUrl: string;
+  state: string;
+  expiresAt: Date;
+} {
   if (!env.SKP_GOOGLE_CLIENT_ID || !env.SKP_GOOGLE_CLIENT_SECRET) {
     throw new ValidationError("Google sign-in is not configured");
   }
@@ -183,26 +280,44 @@ export async function completeGoogleAuth(
     throw new ValidationError("Google sign-in is not configured");
   }
   const challenge = consumeOauthChallenge(db, input.state);
-  if (!challenge) throw new ForbiddenError("INVALID_OAUTH_STATE", "Unknown or expired sign-in attempt");
+  if (!challenge)
+    throw new ForbiddenError(
+      "INVALID_OAUTH_STATE",
+      "Unknown or expired sign-in attempt",
+    );
 
   const tokens = await exchangeGoogleCode({
     code: input.code,
     codeVerifier: challenge.code_verifier,
     redirectUri: googleRedirectUri(),
   });
-  if (!tokens.id_token) throw new UnauthenticatedError("Google did not return an ID token");
+  if (!tokens.id_token)
+    throw new UnauthenticatedError("Google did not return an ID token");
 
   const claims = await verifyGoogleIdToken(tokens.id_token, challenge.nonce);
+  // Account linking and the email allowlist both key off the email claim;
+  // trusting an unverified one would let a `email_verified: false` identity
+  // claim the owner's address and take over the existing account.
+  if (!claims.emailVerified) {
+    throw new UnauthenticatedError("Google account email is not verified");
+  }
   const allowlist = allowedGoogleEmails(db);
   if (allowlist.length > 0 && !allowlist.includes(claims.email.toLowerCase())) {
     throw new GoogleNotAllowedError();
   }
 
   const existingIdentity = findGoogleIdentityBySub(db, claims.sub);
-  const user = existingIdentity ? findUserById(db, existingIdentity.user_id) : bootstrapFromGoogle(db, claims.email);
+  const user = existingIdentity
+    ? findUserById(db, existingIdentity.user_id)
+    : bootstrapFromGoogle(db, claims.email);
   if (!user) throw new UnauthenticatedError();
 
-  linkGoogleIdentity(db, { userId: user.id, sub: claims.sub, email: claims.email, pictureUrl: claims.picture });
+  linkGoogleIdentity(db, {
+    userId: user.id,
+    sub: claims.sub,
+    email: claims.email,
+    pictureUrl: claims.picture,
+  });
   touchLastLogin(db, user.id);
   const limits = sessionLimits(db);
   const session = createSession(db, {
@@ -220,7 +335,10 @@ function bootstrapFromGoogle(db: Db, email: string): UserRow {
   if (needsBootstrap(db)) return createUser(db, { email, passwordHash: null });
   const existing = findUserByEmail(db, email);
   if (existing) return existing;
-  throw new ForbiddenError("OWNER_ACCOUNT_EXISTS", "A different owner account is already configured");
+  throw new ForbiddenError(
+    "OWNER_ACCOUNT_EXISTS",
+    "A different owner account is already configured",
+  );
 }
 
 export function changePassword(
@@ -230,11 +348,16 @@ export function changePassword(
   const session = findSessionById(db, input.sessionId);
   if (!session) throw new UnauthenticatedError();
   const user = findUserById(db, session.user_id);
-  if (!user?.password_hash || !verifyPassword(input.currentPassword, user.password_hash)) {
+  if (
+    !user?.password_hash ||
+    !verifyPassword(input.currentPassword, user.password_hash)
+  ) {
     throw new InvalidCredentialsError();
   }
   if (input.newPassword.length < env.SKP_PASSWORD_MIN_LENGTH) {
-    throw new ValidationError(`Master password must be at least ${env.SKP_PASSWORD_MIN_LENGTH} characters`);
+    throw new ValidationError(
+      `Master password must be at least ${env.SKP_PASSWORD_MIN_LENGTH} characters`,
+    );
   }
   updatePasswordHash(db, user.id, hashPassword(input.newPassword));
   revokeSession(db, session.id);

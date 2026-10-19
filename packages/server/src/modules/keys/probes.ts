@@ -48,7 +48,10 @@ const PROBES: Record<string, ProbeDefinition> = {
   },
   github: {
     url: "https://api.github.com/user",
-    headers: (key) => ({ authorization: `Bearer ${key}`, accept: "application/vnd.github+json" }),
+    headers: (key) => ({
+      authorization: `Bearer ${key}`,
+      accept: "application/vnd.github+json",
+    }),
   },
   perplexity: {
     url: "https://api.perplexity.ai/chat/completions",
@@ -76,10 +79,16 @@ const PROBES: Record<string, ProbeDefinition> = {
   },
 };
 
-export async function probeProvider(provider: string, value: string): Promise<ProbeResult> {
+export async function probeProvider(
+  provider: string,
+  value: string,
+): Promise<ProbeResult> {
   const probe = PROBES[provider];
   if (!probe) {
-    return { status: "error", detail: `No safe verification endpoint for provider "${provider}"` };
+    return {
+      status: "error",
+      detail: `No safe verification endpoint for provider "${provider}"`,
+    };
   }
   const controller = new AbortController();
   const timer = setTimeout(() => controller.abort(), TIMEOUT_MS);
@@ -90,16 +99,25 @@ export async function probeProvider(provider: string, value: string): Promise<Pr
       signal: controller.signal,
     });
     if (response.status === 401 || response.status === 403) {
-      return { status: "invalid", detail: `provider rejected the key (HTTP ${response.status})` };
+      return {
+        status: "invalid",
+        detail: `provider rejected the key (HTTP ${response.status})`,
+      };
     }
     if (response.status === 429) {
       return { status: "error", detail: "provider is rate limiting this key" };
     }
     if (response.ok || response.status === 404) {
       const label = PROVIDER_BY_ID.get(provider)?.label ?? provider;
-      return { status: "valid", detail: `accepted by ${label} (HTTP ${response.status})` };
+      return {
+        status: "valid",
+        detail: `accepted by ${label} (HTTP ${response.status})`,
+      };
     }
-    return { status: "error", detail: `unexpected provider response (HTTP ${response.status})` };
+    return {
+      status: "error",
+      detail: `unexpected provider response (HTTP ${response.status})`,
+    };
   } catch (error) {
     const reason = error instanceof Error ? error.name : "unknown";
     return { status: "error", detail: `network error: ${reason}` };

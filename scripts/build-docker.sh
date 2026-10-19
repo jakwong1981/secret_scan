@@ -3,13 +3,17 @@
 # Builds (and optionally pushes / exports) the SecretKeyPreview image with docker buildx.
 set -Eeuo pipefail
 
+# Resolve everything from the repo root, not the caller's cwd: `node -p`
+# require('./package.json') and docker buildx paths are cwd-relative.
+ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
+
 IMAGE_NAME="${IMAGE_NAME:-secretkeypreview}"
 REGISTRY="${REGISTRY:-}"
-VERSION="${VERSION:-$(node -p "require('./package.json').version")}"
-GIT_SHA="${GIT_SHA:-$(git rev-parse --short HEAD 2>/dev/null || echo unknown)}"
+VERSION="${VERSION:-$(node -p "require('${ROOT}/package.json').version")}"
+GIT_SHA="${GIT_SHA:-$(git -C "$ROOT" rev-parse --short HEAD 2>/dev/null || echo unknown)}"
 NODE_IMAGE="${NODE_IMAGE:-node:22.14.0-bookworm-slim}"
-DOCKERFILE="${DOCKERFILE:-docker/Dockerfile}"
-CONTEXT="${CONTEXT:-.}"
+DOCKERFILE="${DOCKERFILE:-${ROOT}/docker/Dockerfile}"
+CONTEXT="${CONTEXT:-${ROOT}}"
 PLATFORMS="${PLATFORMS:-}"
 PUSH="${PUSH:-false}"
 NO_CACHE="${NO_CACHE:-false}"

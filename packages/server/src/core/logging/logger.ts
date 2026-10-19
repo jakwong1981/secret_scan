@@ -19,13 +19,20 @@ export const REDACT_PATHS = [
   "*.cipherText",
   "*.iv",
   "*.authTag",
-  "res.headers[\"set-cookie\"]",
+  'res.headers["set-cookie"]',
 ];
 
 const CENSOR = "[REDACTED]";
 
-function prettyTransport(): { transport: { target: string; options: Record<string, unknown> } } {
-  return { transport: { target: "pino-pretty", options: { colorize: true, translateTime: "HH:MM:ss" } } };
+function prettyTransport(): {
+  transport: { target: string; options: Record<string, unknown> };
+} {
+  return {
+    transport: {
+      target: "pino-pretty",
+      options: { colorize: true, translateTime: "HH:MM:ss" },
+    },
+  };
 }
 
 function baseConfig(): Record<string, unknown> {
@@ -40,7 +47,10 @@ function baseConfig(): Record<string, unknown> {
 /** Logger configuration object accepted by Fastify. */
 export function fastifyLoggerConfig(): Record<string, unknown> {
   const config = baseConfig();
-  if (env.SKP_NODE_ENV === "development" || process.env.SKP_LOG_PRETTY === "true") {
+  if (
+    env.SKP_NODE_ENV === "development" ||
+    process.env.SKP_LOG_PRETTY === "true"
+  ) {
     return { ...config, ...prettyTransport() };
   }
   return config;
@@ -50,7 +60,8 @@ export function fastifyLoggerConfig(): Record<string, unknown> {
 export function createLogger(): Logger {
   return pino({
     ...baseConfig(),
-    ...(env.SKP_NODE_ENV === "development" || process.env.SKP_LOG_PRETTY === "true"
+    ...(env.SKP_NODE_ENV === "development" ||
+    process.env.SKP_LOG_PRETTY === "true"
       ? prettyTransport()
       : {}),
   });

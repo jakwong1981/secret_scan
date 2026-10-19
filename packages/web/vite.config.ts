@@ -6,8 +6,14 @@ import { resolve } from "node:path";
 import type { ServerOptions } from "node:https";
 
 const root = resolve(import.meta.dirname, "../..");
-const certPath = resolve(root, process.env.SKP_TLS_CERT_PATH ?? "./certs/localhost.pem");
-const keyPath = resolve(root, process.env.SKP_TLS_KEY_PATH ?? "./certs/localhost-key.pem");
+const certPath = resolve(
+  root,
+  process.env.SKP_TLS_CERT_PATH ?? "./certs/localhost.pem",
+);
+const keyPath = resolve(
+  root,
+  process.env.SKP_TLS_KEY_PATH ?? "./certs/localhost-key.pem",
+);
 
 /** The dev server is HTTPS too, mirroring the production deployment. */
 function devHttps(): ServerOptions | undefined {

@@ -3,7 +3,10 @@ import { api } from "../api/client";
 import { Badge, Card, EmptyState, Spinner, formatDate } from "../components/ui";
 
 export function AuditPage() {
-  const audit = useQuery({ queryKey: ["audit"], queryFn: () => api.audit.list(100, 0) });
+  const audit = useQuery({
+    queryKey: ["audit"],
+    queryFn: () => api.audit.list(100, 0),
+  });
 
   if (audit.isPending) {
     return (
@@ -18,9 +21,12 @@ export function AuditPage() {
   return (
     <div className="space-y-6">
       <div>
-        <h1 className="text-xl font-semibold tracking-tight text-ink">Audit trail</h1>
+        <h1 className="text-xl font-semibold tracking-tight text-ink">
+          Audit trail
+        </h1>
         <p className="text-sm text-muted">
-          Every reveal, verification, sign-in and configuration change, with request trace IDs.
+          Every reveal, verification, sign-in and configuration change, with
+          request trace IDs.
         </p>
       </div>
 
@@ -54,20 +60,39 @@ export function AuditPage() {
               </thead>
               <tbody>
                 {entries.map((entry) => (
-                  <tr key={entry.id} className="border-b border-line last:border-0">
-                    <td className="px-4 py-3 text-xs text-muted">{formatDate(entry.at)}</td>
+                  <tr
+                    key={entry.id}
+                    className="border-b border-line last:border-0"
+                  >
+                    <td className="px-4 py-3 text-xs text-muted">
+                      {formatDate(entry.at)}
+                    </td>
                     <td className="px-4 py-3 text-xs text-ink">
                       {entry.action}
-                      {entry.detail ? <span className="block text-muted">{entry.detail}</span> : null}
+                      {entry.detail ? (
+                        <span className="block text-muted">{entry.detail}</span>
+                      ) : null}
                     </td>
                     <td className="px-4 py-3 text-xs">{entry.actor}</td>
-                    <td className="px-4 py-3 text-xs break-all text-muted">{entry.target ?? "—"}</td>
+                    <td className="px-4 py-3 text-xs break-all text-muted">
+                      {entry.target ?? "—"}
+                    </td>
                     <td className="px-4 py-3">
-                      <Badge tone={entry.outcome === "success" ? "ok" : entry.outcome === "denied" ? "warn" : "danger"}>
+                      <Badge
+                        tone={
+                          entry.outcome === "success"
+                            ? "ok"
+                            : entry.outcome === "denied"
+                              ? "warn"
+                              : "danger"
+                        }
+                      >
                         {entry.outcome}
                       </Badge>
                     </td>
-                    <td className="px-4 py-3 font-mono text-[10px] text-muted">{entry.traceId.slice(0, 8)}</td>
+                    <td className="px-4 py-3 font-mono text-[10px] text-muted">
+                      {entry.traceId.slice(0, 8)}
+                    </td>
                   </tr>
                 ))}
               </tbody>

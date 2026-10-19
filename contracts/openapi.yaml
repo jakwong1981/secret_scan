@@ -3,7 +3,7 @@ info:
   title: SecretKeyPreview API
   version: 0.1.0
   description: |
-    Owner-only local vault for every AI/LLM API key found on a Mac.
+    Local vault for every AI/LLM API key found on a Mac.
 
     * Transport is HTTPS only (TLS 1.3, TLS 1.2 floor). No plaintext listener is
       published by the application.
@@ -39,13 +39,13 @@ paths:
       summary: Liveness + build info
       security: []
       responses:
-        '200':
+        "200":
           description: Service healthy
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/EnvelopeHealth'
-        '503':
+                $ref: "#/components/schemas/EnvelopeHealth"
+        "503":
           description: Database unavailable
 
   /auth/status:
@@ -54,12 +54,12 @@ paths:
       summary: Authentication configuration
       security: []
       responses:
-        '200':
+        "200":
           description: Current auth status
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/EnvelopeAuthStatus'
+                $ref: "#/components/schemas/EnvelopeAuthStatus"
 
   /auth/bootstrap:
     post:
@@ -71,17 +71,17 @@ paths:
         content:
           application/json:
             schema:
-              $ref: '#/components/schemas/BootstrapRequest'
+              $ref: "#/components/schemas/BootstrapRequest"
       responses:
-        '200':
+        "200":
           description: Owner created, session cookie set
           headers:
             Set-Cookie:
               schema: { type: string }
               description: skp_session=<id>; HttpOnly; Secure; SameSite=Strict; Path=/
-        '409':
+        "409":
           description: Owner account already exists
-        '429':
+        "429":
           description: Too many bootstrap attempts
 
   /auth/login:
@@ -94,16 +94,16 @@ paths:
         content:
           application/json:
             schema:
-              $ref: '#/components/schemas/LoginRequest'
+              $ref: "#/components/schemas/LoginRequest"
       responses:
-        '200':
+        "200":
           description: Signed in
           headers:
             Set-Cookie:
               schema: { type: string }
-        '401':
+        "401":
           description: Invalid credentials (INVALID_CREDENTIALS)
-        '429':
+        "429":
           description: Rate limited after 5 failures in 5 minutes
 
   /auth/logout:
@@ -111,7 +111,7 @@ paths:
       tags: [auth]
       summary: Revoke the current session
       responses:
-        '200':
+        "200":
           description: Session revoked, cookie cleared
 
   /auth/me:
@@ -119,13 +119,13 @@ paths:
       tags: [auth]
       summary: Current session user
       responses:
-        '200':
+        "200":
           description: Signed-in owner
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/EnvelopeSessionUser'
-        '401':
+                $ref: "#/components/schemas/EnvelopeSessionUser"
+        "401":
           description: No valid session
 
   /auth/verify-password:
@@ -137,9 +137,9 @@ paths:
         content:
           application/json:
             schema:
-              $ref: '#/components/schemas/VerifyPasswordRequest'
+              $ref: "#/components/schemas/VerifyPasswordRequest"
       responses:
-        '200':
+        "200":
           description: Sensitive scope granted
           content:
             application/json:
@@ -147,8 +147,74 @@ paths:
                 type: object
                 properties:
                   sensitiveScopeUntil: { type: string, format: date-time }
-        '401':
+        "401":
           description: Wrong master password
+
+  /auth/register:
+    post:
+      tags: [auth]
+      summary: Self-service sign-up (public, rate limited)
+      description: >
+        Anyone who can reach the port may create a password account; every account
+        previews the same vault, so the port (loopback + TLS by default) is the
+        trust boundary. No session and no re-authentication are required. Rate
+        limited to 5 attempts per 10 minutes. Disabled unless the server was
+        started with SKP_ENABLE_REGISTRATION (default: on for loopback binds,
+        off when bound beyond loopback).
+      security: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [email, masterPassword, confirmPassword]
+              properties:
+                email: { type: string, format: email }
+                masterPassword: { type: string, minLength: 8 }
+                confirmPassword: { type: string, minLength: 8 }
+      responses:
+        "200":
+          description: Account created
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/EnvelopeSessionUser"
+        "400":
+          description: Password mismatch or below the configured minimum
+        "403":
+          description: Registration disabled (SKP_ENABLE_REGISTRATION)
+        "409":
+          description: Email already registered
+        "429":
+          description: Too many sign-up attempts
+
+  /auth/users:
+    get:
+      tags: [auth]
+      summary: List the members that can preview this vault
+      responses:
+        "200":
+          description: Members, oldest first
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  items:
+                    type: array
+                    items:
+                      type: object
+                      properties:
+                        id: { type: string }
+                        email: { type: string, format: email }
+                        methods:
+                          type: array
+                          items: { type: string, enum: [password, google] }
+                        createdAt: { type: string, format: date-time }
+                        lastLoginAt:
+                          { type: [string, "null"], format: date-time }
+                  total: { type: integer }
 
   /auth/change-password:
     post:
@@ -166,7 +232,7 @@ paths:
                 currentPassword: { type: string }
                 newPassword: { type: string, minLength: 12 }
       responses:
-        '200':
+        "200":
           description: Password changed
 
   /auth/google/start:
@@ -175,7 +241,7 @@ paths:
       summary: Begin Google OAuth (loopback + PKCE)
       security: []
       responses:
-        '200':
+        "200":
           description: Authorization URL
           content:
             application/json:
@@ -190,6 +256,9 @@ paths:
     get:
       tags: [auth]
       summary: Google redirect handler (registered at https://127.0.0.1:4173/api/v1/auth/google/callback)
+      description: >-
+        Rejects ID tokens whose `email_verified` claim is false — Google logins
+        only link to existing accounts with a verified email address.
       security: []
       parameters:
         - in: query
@@ -201,12 +270,12 @@ paths:
           required: true
           schema: { type: string }
       responses:
-        '200':
+        "200":
           description: HTML page that notifies the opener window
           content:
             text/html:
               schema: { type: string }
-        '400':
+        "400":
           description: Missing code, bad state, or account not allow-listed
 
   /keys:
@@ -215,45 +284,48 @@ paths:
       summary: List discovered keys (masked)
       parameters:
         - { in: query, name: provider, schema: { type: string } }
-        - { in: query, name: status, schema: { type: string, enum: [active, removed, archived] } }
-        - { in: query, name: sourceKind, schema: { type: string, enum: [file, env-file, keychain, regex-file] } }
+        - {
+            in: query,
+            name: status,
+            schema: { type: string, enum: [active, removed, archived] },
+          }
+        - {
+            in: query,
+            name: sourceKind,
+            schema:
+              { type: string, enum: [file, env-file, keychain, regex-file] },
+          }
         - { in: query, name: search, schema: { type: string } }
-        - { in: query, name: sort, schema: { type: string, enum: [date_added, provider, last_seen] } }
-        - { in: query, name: limit, schema: { type: integer, default: 50, maximum: 200 } }
+        - {
+            in: query,
+            name: sort,
+            schema: { type: string, enum: [date_added, provider, last_seen] },
+          }
+        - {
+            in: query,
+            name: limit,
+            schema: { type: integer, default: 50, maximum: 200 },
+          }
         - { in: query, name: offset, schema: { type: integer, default: 0 } }
       responses:
-        '200':
+        "200":
           description: Page of masked keys
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/EnvelopeKeyList'
-        '401':
-          $ref: '#/components/responses/Unauthenticated'
-
-  /keys/{id}:
-    get:
-      tags: [keys]
-      summary: Key detail with evidence and lifecycle
-      parameters: [{ in: path, name: id, required: true, schema: { type: string } }]
-      responses:
-        '200':
-          description: Key detail
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/EnvelopeKeyDetail'
-        '404':
-          description: Key not found
+                $ref: "#/components/schemas/EnvelopeKeyList"
+        "401":
+          $ref: "#/components/responses/Unauthenticated"
 
   /keys/{id}/reveal:
     post:
       tags: [keys]
       summary: Decrypt and return the secret once (sensitive scope required)
       x-security: sensitive
-      parameters: [{ in: path, name: id, required: true, schema: { type: string } }]
+      parameters:
+        [{ in: path, name: id, required: true, schema: { type: string } }]
       responses:
-        '200':
+        "200":
           description: Decrypted value, valid for 30 seconds
           content:
             application/json:
@@ -262,25 +334,41 @@ paths:
                 properties:
                   value: { type: string }
                   expiresAt: { type: string, format: date-time }
-        '401':
+        "401":
           description: Re-authentication required
 
   /keys/{id}/verify:
     post:
       tags: [keys]
       summary: Ask the provider whether the key still works (opt-in setting)
-      parameters: [{ in: path, name: id, required: true, schema: { type: string } }]
+      parameters:
+        [{ in: path, name: id, required: true, schema: { type: string } }]
       responses:
-        '200':
+        "200":
           description: Verification outcome (valid | invalid | error)
-        '403':
+        "403":
           description: Verification disabled in Settings
 
   /keys/{id}:
+    get:
+      tags: [keys]
+      summary: Key detail with evidence and lifecycle
+      parameters:
+        [{ in: path, name: id, required: true, schema: { type: string } }]
+      responses:
+        "200":
+          description: Key detail
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/EnvelopeKeyDetail"
+        "404":
+          description: Key not found
     patch:
       tags: [keys]
       summary: Update label / tags / status
-      parameters: [{ in: path, name: id, required: true, schema: { type: string } }]
+      parameters:
+        [{ in: path, name: id, required: true, schema: { type: string } }]
       requestBody:
         required: true
         content:
@@ -292,15 +380,16 @@ paths:
                 tags: { type: array, items: { type: string } }
                 status: { type: string, enum: [active, archived] }
       responses:
-        '200':
+        "200":
           description: Updated
     delete:
       tags: [keys]
       summary: Delete a key from the vault (sensitive scope required)
       x-security: sensitive
-      parameters: [{ in: path, name: id, required: true, schema: { type: string } }]
+      parameters:
+        [{ in: path, name: id, required: true, schema: { type: string } }]
       responses:
-        '200':
+        "200":
           description: Deleted
 
   /scans:
@@ -308,40 +397,43 @@ paths:
       tags: [scans]
       summary: Scan history
       responses:
-        '200':
+        "200":
           description: Runs and aggregate totals
     post:
       tags: [scans]
       summary: Trigger a scan over the enabled sources
       responses:
-        '202':
+        "202":
           description: Scan finished (runs synchronously, progress via SSE)
 
   /scans/{id}:
     get:
       tags: [scans]
       summary: Scan run detail
-      parameters: [{ in: path, name: id, required: true, schema: { type: string } }]
+      parameters:
+        [{ in: path, name: id, required: true, schema: { type: string } }]
       responses:
-        '200':
+        "200":
           description: Run row
 
   /scans/{id}/cancel:
     post:
       tags: [scans]
       summary: Request cancellation of a running scan
-      parameters: [{ in: path, name: id, required: true, schema: { type: string } }]
+      parameters:
+        [{ in: path, name: id, required: true, schema: { type: string } }]
       responses:
-        '200':
+        "200":
           description: Cancellation accepted
 
   /scans/{id}/events:
     get:
       tags: [scans]
       summary: Server-sent progress events for a scan run
-      parameters: [{ in: path, name: id, required: true, schema: { type: string } }]
+      parameters:
+        [{ in: path, name: id, required: true, schema: { type: string } }]
       responses:
-        '200':
+        "200":
           description: text/event-stream
 
   /sources:
@@ -349,31 +441,33 @@ paths:
       tags: [sources]
       summary: Scan source registry
       responses:
-        '200':
+        "200":
           description: Source definitions
     post:
       tags: [sources]
       summary: Add a scan source (sensitive scope required)
       x-security: sensitive
       responses:
-        '201':
+        "201":
           description: Source created
 
   /sources/{id}:
     patch:
       tags: [sources]
       summary: Enable/disable or edit a source
-      parameters: [{ in: path, name: id, required: true, schema: { type: string } }]
+      parameters:
+        [{ in: path, name: id, required: true, schema: { type: string } }]
       responses:
-        '200':
+        "200":
           description: Updated
     delete:
       tags: [sources]
       summary: Remove a source (sensitive scope required)
       x-security: sensitive
-      parameters: [{ in: path, name: id, required: true, schema: { type: string } }]
+      parameters:
+        [{ in: path, name: id, required: true, schema: { type: string } }]
       responses:
-        '200':
+        "200":
           description: Deleted
 
   /settings:
@@ -381,14 +475,14 @@ paths:
       tags: [settings]
       summary: Current settings
       responses:
-        '200':
+        "200":
           description: Settings
     put:
       tags: [settings]
       summary: Update settings (sensitive scope required)
       x-security: sensitive
       responses:
-        '200':
+        "200":
           description: Updated settings
 
   /audit:
@@ -396,10 +490,14 @@ paths:
       tags: [audit]
       summary: Audit trail (newest first)
       parameters:
-        - { in: query, name: limit, schema: { type: integer, default: 50, maximum: 200 } }
+        - {
+            in: query,
+            name: limit,
+            schema: { type: integer, default: 50, maximum: 200 },
+          }
         - { in: query, name: offset, schema: { type: integer, default: 0 } }
       responses:
-        '200':
+        "200":
           description: Audit entries
 
   /providers:
@@ -407,7 +505,7 @@ paths:
       tags: [providers]
       summary: Provider catalogue used by the classifier
       responses:
-        '200':
+        "200":
           description: Providers
 
 components:
@@ -424,7 +522,7 @@ components:
       content:
         application/json:
           schema:
-            $ref: '#/components/schemas/ApiError'
+            $ref: "#/components/schemas/ApiError"
 
   schemas:
     ApiError:
@@ -461,6 +559,7 @@ components:
             passwordConfigured: { type: boolean }
             googleConfigured: { type: boolean }
             googleAllowedEmails: { type: array, items: { type: string } }
+            passwordMinLength: { type: integer }
 
     EnvelopeSessionUser:
       type: object
@@ -482,7 +581,7 @@ components:
           properties:
             items:
               type: array
-              items: { $ref: '#/components/schemas/MaskedKey' }
+              items: { $ref: "#/components/schemas/MaskedKey" }
             total: { type: integer }
 
     EnvelopeKeyDetail:
@@ -490,7 +589,7 @@ components:
       properties:
         data:
           allOf:
-            - $ref: '#/components/schemas/MaskedKey'
+            - $ref: "#/components/schemas/MaskedKey"
             - type: object
               properties:
                 tags: { type: array, items: { type: string } }
@@ -502,10 +601,34 @@ components:
                       id: { type: string }
                       type:
                         type: string
-                        enum: [discovered, revealed, verified, rotated, removed, archived, deleted]
+                        enum:
+                          [
+                            discovered,
+                            revealed,
+                            verified,
+                            rotated,
+                            removed,
+                            archived,
+                            deleted,
+                          ]
                       at: { type: string, format: date-time }
                       actor: { type: string }
                       note: { type: string }
+
+    SourceSighting:
+      type: object
+      description: |
+        One place a secret was found. Keys are deduped by value, so one secret may
+        have several homes; `sources` lists all of them (oldest first, ties broken
+        by path) including the key's primary `sourcePath`/`sourcePointer`.
+      properties:
+        sourceKind:
+          { type: string, enum: [file, env-file, keychain, regex-file] }
+        sourcePath: { type: string }
+        sourcePointer: { type: string }
+        envVarName: { type: string }
+        firstSeenAt: { type: string, format: date-time }
+        lastSeenAt: { type: string, format: date-time }
 
     MaskedKey:
       type: object
@@ -515,8 +638,10 @@ components:
         providerLabel: { type: string }
         label: { type: string }
         maskedValue: { type: string, example: sk-ant-••••••wXyZ }
-        fingerprint: { type: string, description: sha256 of the secret, used for dedupe }
-        sourceKind: { type: string, enum: [file, env-file, keychain, regex-file] }
+        fingerprint:
+          { type: string, description: sha256 of the secret, used for dedupe }
+        sourceKind:
+          { type: string, enum: [file, env-file, keychain, regex-file] }
         sourcePath: { type: string }
         sourcePointer: { type: string }
         envVarName: { type: string }
@@ -524,8 +649,12 @@ components:
         lastSeenAt: { type: string, format: date-time }
         sourceMtime: { type: string, format: date-time }
         lastVerifiedAt: { type: string, format: date-time }
-        verificationStatus: { type: string, enum: [unknown, valid, invalid, error] }
+        verificationStatus:
+          { type: string, enum: [unknown, valid, invalid, error] }
         status: { type: string, enum: [active, removed, archived] }
+        sources:
+          type: array
+          items: { $ref: "#/components/schemas/SourceSighting" }
 
     BootstrapRequest:
       type: object

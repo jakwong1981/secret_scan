@@ -27,7 +27,9 @@ export function runMigrations(db: Db): void {
     "CREATE TABLE IF NOT EXISTS _migrations (id TEXT PRIMARY KEY NOT NULL, applied_at TEXT NOT NULL)",
   );
   const applied = new Set(
-    queryAll<{ id: string }>(db, "SELECT id FROM _migrations").map((row) => row.id),
+    queryAll<{ id: string }>(db, "SELECT id FROM _migrations").map(
+      (row) => row.id,
+    ),
   );
   for (const migration of migrations) {
     if (applied.has(migration.id)) continue;
@@ -88,12 +90,20 @@ export function queryAll<T>(db: Db, sql: string, ...params: SqlValue[]): T[] {
   return db.prepare(sql).all(...params) as T[];
 }
 
-export function queryOne<T>(db: Db, sql: string, ...params: SqlValue[]): T | null {
+export function queryOne<T>(
+  db: Db,
+  sql: string,
+  ...params: SqlValue[]
+): T | null {
   const row = db.prepare(sql).get(...params);
   return (row as T | null | undefined) ?? null;
 }
 
-export function execute(db: Db, sql: string, ...params: SqlValue[]): { changes: number } {
+export function execute(
+  db: Db,
+  sql: string,
+  ...params: SqlValue[]
+): { changes: number } {
   const result = db.prepare(sql).run(...params);
   return { changes: Number(result.changes) };
 }

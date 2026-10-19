@@ -7,6 +7,7 @@ import type {
   KeyDetail,
   KeyList,
   LoginRequest,
+  RegisterRequest,
   RevealKeyResponse,
   ScanProgressEvent,
   ScanRun,
@@ -15,11 +16,15 @@ import type {
   Source,
   UpdateKeyInput,
   UpdateSettingsInput,
+  UserList,
   VerifyKeyResponse,
 } from "@skp/contracts";
 
-const API_ORIGIN = import.meta.env.VITE_API_ORIGIN ?? "https://127.0.0.1:4173";
-const BASE = `${API_ORIGIN}/api/v1`;
+// The server serves the SPA and the API from one origin, so requests stay
+// first-party and the SameSite=Strict session cookie is always sent. Pointing
+// the built bundle at a different host would make every POST a cross-origin
+// request the API does not answer with CORS headers.
+const BASE = "/api/v1";
 
 export class ApiError extends Error {
   readonly code: string;
@@ -75,7 +80,9 @@ export interface KeyQuery {
   offset?: number;
 }
 
-function queryString(params: Record<string, string | number | undefined>): string {
+function queryString(
+  params: Record<string, string | number | undefined>,
+): string {
   const search = new URLSearchParams();
   for (const [key, value] of Object.entries(params)) {
     if (value !== undefined && value !== "") search.set(key, String(value));
@@ -88,12 +95,26 @@ export const api = {
   auth: {
     status: () => request<AuthStatus>("/auth/status"),
     bootstrap: (payload: BootstrapRequest) =>
-      request<AuthUserView>("/auth/bootstrap", { method: "POST", body: JSON.stringify(payload) }),
+      request<AuthUserView>("/auth/bootstrap", {
+        method: "POST",
+        body: JSON.stringify(payload),
+      }),
     login: (payload: LoginRequest) =>
-      request<AuthUserView>("/auth/login", { method: "POST", body: JSON.stringify(payload) }),
-    logout: () => request<{ revoked: true }>("/auth/logout", { method: "POST" }),
+      request<AuthUserView>("/auth/login", {
+        method: "POST",
+        body: JSON.stringify(payload),
+      }),
+    register: (payload: RegisterRequest) =>
+      request<AuthUserView>("/auth/register", {
+        method: "POST",
+        body: JSON.stringify(payload),
+      }),
+    users: () => request<UserList>("/auth/users"),
+    logout: () =>
+      request<{ revoked: true }>("/auth/logout", { method: "POST" }),
     me: () => request<SessionUser>("/auth/me"),
-    googleStart: () => request<GoogleStartResponse>("/auth/google/start", { method: "POST" }),
+    googleStart: () =>
+      request<GoogleStartResponse>("/auth/google/start", { method: "POST" }),
     verifyPassword: (masterPassword: string) =>
       request<{ sensitiveScopeUntil: string }>("/auth/verify-password", {
         method: "POST",
@@ -108,22 +129,46 @@ export const api = {
 
   keys: {
     list: (params: KeyQuery = {}) =>
-      request<KeyList>(`/keys${queryString({ provider: params.provider, status: params.status, sourceKind: params.sourceKind, search: params.search, sort: params.sort, limit: params.limit, offset: params.offset })}`),
+      request<KeyList>(
+        `/keys${queryString({ provider: params.provider, status: params.status, sourceKind: params.sourceKind, search: params.search, sort: params.sort, limit: params.limit, offset: params.offset })}`,
+      ),
     detail: (id: string) => request<KeyDetail>(`/keys/${id}`),
-    reveal: (id: string) => request<RevealKeyResponse>(`/keys/${id}/reveal`, { method: "POST" }),
-    verify: (id: string) => request<VerifyKeyResponse>(`/keys/${id}/verify`, { method: "POST" }),
+    reveal: (id: string) =>
+      request<RevealKeyResponse>(`/keys/${id}/reveal`, { method: "POST" }),
+    verify: (id: string) =>
+      request<VerifyKeyResponse>(`/keys/${id}/verify`, { method: "POST" }),
     update: (id: string, payload: UpdateKeyInput) =>
-      request<{ updated: true }>(`/keys/${id}`, { method: "PATCH", body: JSON.stringify(payload) }),
-    remove: (id: string) => request<{ deleted: true }>(`/keys/${id}`, { method: "DELETE" }),
+      request<{ updated: true }>(`/keys/${id}`, {
+        method: "PATCH",
+        body: JSON.stringify(payload),
+      }),
+    remove: (id: string) =>
+      request<{ deleted: true }>(`/keys/${id}`, { method: "DELETE" }),
   },
 
   scans: {
-    list: () => request<{ items: ScanRun[]; total: number; totalKeys: number }>("/scans"),
-    trigger: () => request<{ run: ScanRun; outcome: { runId: string; status: string; counts: Record<string, number> } }>("/scans", { method: "POST" }),
+    list: () =>
+      request<{ items: ScanRun[]; total: number; totalKeys: number }>("/scans"),
+    trigger: () =>
+      request<{
+        run: ScanRun;
+        outcome: {
+          runId: string;
+          status: string;
+          counts: Record<string, number>;
+        };
+      }>("/scans", { method: "POST" }),
     get: (id: string) => request<ScanRun>(`/scans/${id}`),
-    cancel: (id: string) => request<{ canceled: boolean }>(`/scans/${id}/cancel`, { method: "POST" }),
-    events: (id: string, onEvent: (event: ScanProgressEvent) => void, onDone?: () => void): (() => void) => {
-      const source = new EventSource(`${BASE}/scans/${id}/events`, { withCredentials: true });
+    cancel: (id: string) =>
+      request<{ canceled: boolean }>(`/scans/${id}/cancel`, { method: "POST" }),
+    events: (
+      id: string,
+      onEvent: (event: ScanProgressEvent) => void,
+      onDone?: () => void,
+    ): (() => void) => {
+      const source = new EventSource(`${BASE}/scans/${id}/events`, {
+        withCredentials: true,
+      });
       source.onmessage = (message) => {
         try {
           onEvent(JSON.parse(message.data) as ScanProgressEvent);
@@ -167,7 +212,8 @@ export const api = {
   },
 
   audit: {
-    list: (limit = 50, offset = 0) => request<AuditList>(`/audit${queryString({ limit, offset })}`),
+    list: (limit = 50, offset = 0) =>
+      request<AuditList>(`/audit${queryString({ limit, offset })}`),
   },
 };
 

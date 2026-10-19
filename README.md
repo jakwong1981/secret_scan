@@ -1,8 +1,10 @@
 # SecretKeyPreview
 
-Owner-only local vault that scans a Mac for every AI/LLM API key (CLI tools, IDEs,
-dotfiles, environment files and macOS Keychain metadata), classifies them by
-provider, and previews them behind re-authentication.
+Local vault that scans a Mac for every AI/LLM API key (CLI tools, IDEs, dotfiles,
+environment files and macOS Keychain metadata), classifies them by provider, and
+previews them behind re-authentication. Sign-up is self-service: the first page is
+the login page, `Create one` opens a public register page, and a new account signs
+in like any other.
 
 **HTTPS only.** The server terminates TLS 1.3 itself with a locally-issued,
 keychain-trusted certificate — there is no plaintext mode.
@@ -26,8 +28,8 @@ pnpm install                  # installs deps and builds @skp/contracts
 pnpm dev                      # API https://127.0.0.1:4173 + UI https://127.0.0.1:5173
 ```
 
-Open <https://127.0.0.1:5173> → create the owner master password (first run) →
-**Scan now**.
+Open <https://127.0.0.1:5173> → create the owner master password (first run) or sign
+in → **Scan now**.
 
 ## Quick start (Docker)
 
@@ -41,7 +43,7 @@ cp .env.example .env          # set SKP_SCAN_HOST_DIR=/Users/<you>
 ## Test / build
 
 ```bash
-pnpm test          # 34 server tests + 5 frontend tests
+pnpm test          # 65 server tests + 18 frontend tests
 pnpm build         # web bundle + server dist
 pnpm lint          # eslint (typescript)
 pnpm typecheck     # tsc --noEmit across the workspace

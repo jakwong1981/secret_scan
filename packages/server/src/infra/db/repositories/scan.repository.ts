@@ -22,35 +22,53 @@ export function findScanRunById(db: Db, id: string): ScanRunRow | null {
   return (row as unknown as ScanRunRow | null) ?? null;
 }
 
-export function listScanRuns(db: Db, limit: number, offset: number): ScanRunRow[] {
+export function listScanRuns(
+  db: Db,
+  limit: number,
+  offset: number,
+): ScanRunRow[] {
   return db
-    .prepare("SELECT * FROM scan_runs ORDER BY started_at DESC LIMIT ? OFFSET ?")
+    .prepare(
+      "SELECT * FROM scan_runs ORDER BY started_at DESC LIMIT ? OFFSET ?",
+    )
     .all(limit, offset) as unknown as ScanRunRow[];
 }
 
 export function countScanRuns(db: Db): number {
-  const row = db.prepare("SELECT COUNT(*) AS total FROM scan_runs").get() as unknown as { total: number };
+  const row = db
+    .prepare("SELECT COUNT(*) AS total FROM scan_runs")
+    .get() as unknown as { total: number };
   return Number(row.total);
 }
 
 export function completeScanRun(
   db: Db,
   id: string,
-  counts: { newCount: number; updatedCount: number; removedCount: number; totalCount: number },
+  counts: {
+    newCount: number;
+    updatedCount: number;
+    removedCount: number;
+    totalCount: number;
+  },
 ): void {
   db.prepare(
     `UPDATE scan_runs
         SET status = 'completed', finished_at = ?, new_count = ?, updated_count = ?, removed_count = ?, total_count = ?
       WHERE id = ?`,
-  ).run(new Date().toISOString(), counts.newCount, counts.updatedCount, counts.removedCount, counts.totalCount, id);
+  ).run(
+    new Date().toISOString(),
+    counts.newCount,
+    counts.updatedCount,
+    counts.removedCount,
+    counts.totalCount,
+    id,
+  );
 }
 
 export function failScanRun(db: Db, id: string, errorCode: string): void {
-  db.prepare("UPDATE scan_runs SET status = 'failed', finished_at = ?, error_code = ? WHERE id = ?").run(
-    new Date().toISOString(),
-    errorCode,
-    id,
-  );
+  db.prepare(
+    "UPDATE scan_runs SET status = 'failed', finished_at = ?, error_code = ? WHERE id = ?",
+  ).run(new Date().toISOString(), errorCode, id);
 }
 
 export function cancelScanRun(db: Db, id: string): void {
@@ -60,7 +78,9 @@ export function cancelScanRun(db: Db, id: string): void {
 }
 
 export function countKeys(db: Db): number {
-  const row = db.prepare("SELECT COUNT(*) AS total FROM api_keys WHERE status != 'removed'").get() as {
+  const row = db
+    .prepare("SELECT COUNT(*) AS total FROM api_keys WHERE status != 'removed'")
+    .get() as {
     total: number;
   };
   return Number(row.total);

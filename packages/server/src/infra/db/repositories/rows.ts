@@ -73,6 +73,8 @@ export interface ScanRunRow {
 export interface ApiKeyRow {
   id: string;
   provider: string;
+  /** Evidence label that named the provider; see `Evidence`. */
+  provider_evidence: string;
   label: string | null;
   masked_value: string;
   fingerprint: string;
@@ -92,6 +94,16 @@ export interface ApiKeyRow {
   tags: string;
   created_at: string;
   updated_at: string;
+}
+
+export interface KeySourceRow {
+  key_id: string;
+  source_kind: string;
+  source_path: string;
+  source_pointer: string;
+  env_var_name: string | null;
+  first_seen_at: string;
+  last_seen_at: string;
 }
 
 export interface KeyEventRow {

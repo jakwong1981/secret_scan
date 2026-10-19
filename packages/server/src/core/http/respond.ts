@@ -8,7 +8,11 @@ export interface Envelope<T> {
   traceId: string;
 }
 
-export function envelope<T>(request: FastifyRequest, data: T, message?: string): Envelope<T> {
+export function envelope<T>(
+  request: FastifyRequest,
+  data: T,
+  message?: string,
+): Envelope<T> {
   return {
     code: "OK",
     message,
@@ -18,6 +22,10 @@ export function envelope<T>(request: FastifyRequest, data: T, message?: string):
   };
 }
 
-export function ok<T>(reply: FastifyReply, data: T, message?: string): FastifyReply {
+export function ok<T>(
+  reply: FastifyReply,
+  data: T,
+  message?: string,
+): FastifyReply {
   return reply.send(envelope(reply.request, data, message));
 }

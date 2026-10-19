@@ -18,12 +18,19 @@ export function ScansPage() {
   return (
     <div className="space-y-6">
       <div>
-        <h1 className="text-xl font-semibold tracking-tight text-ink">Scan history</h1>
-        <p className="text-sm text-muted">{scans.data?.totalKeys ?? 0} keys currently in the vault.</p>
+        <h1 className="text-xl font-semibold tracking-tight text-ink">
+          Scan history
+        </h1>
+        <p className="text-sm text-muted">
+          {scans.data?.totalKeys ?? 0} keys currently in the vault.
+        </p>
       </div>
 
       {runs.length === 0 ? (
-        <EmptyState title="No scans yet" description="Trigger a scan from the dashboard." />
+        <EmptyState
+          title="No scans yet"
+          description="Trigger a scan from the dashboard."
+        />
       ) : (
         <Card className="overflow-hidden">
           <div className="overflow-x-auto">
@@ -55,10 +62,23 @@ export function ScansPage() {
               </thead>
               <tbody>
                 {runs.map((run) => (
-                  <tr key={run.id} className="border-b border-line last:border-0">
-                    <td className="px-4 py-3 text-xs text-muted">{formatDate(run.startedAt)}</td>
+                  <tr
+                    key={run.id}
+                    className="border-b border-line last:border-0"
+                  >
+                    <td className="px-4 py-3 text-xs text-muted">
+                      {formatDate(run.startedAt)}
+                    </td>
                     <td className="px-4 py-3">
-                      <Badge tone={run.status === "completed" ? "ok" : run.status === "failed" ? "danger" : "warn"}>
+                      <Badge
+                        tone={
+                          run.status === "completed"
+                            ? "ok"
+                            : run.status === "failed"
+                              ? "danger"
+                              : "warn"
+                        }
+                      >
                         {run.status}
                       </Badge>
                     </td>

@@ -1,5 +1,6 @@
 IMAGE_NAME ?= secretkeypreview
-VERSION    ?= $(shell node -p "require('./package.json').version")
+ROOT       := $(patsubst %/,%,$(dir $(abspath $(lastword $(MAKEFILE_LIST)))))
+VERSION    ?= $(shell node -p "require('$(ROOT)/package.json').version")
 REGISTRY   ?=
 NODE_IMAGE ?= node:22.14.0-bookworm-slim
 

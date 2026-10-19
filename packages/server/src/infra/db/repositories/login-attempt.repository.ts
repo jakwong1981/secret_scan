@@ -9,7 +9,9 @@ export function recordLoginAttempt(
   db: Db,
   input: { email: string; ip?: string; ok: boolean },
 ): void {
-  db.prepare("INSERT INTO login_attempts (id, email, ip_hash, at, ok) VALUES (?, ?, ?, ?, ?)").run(
+  db.prepare(
+    "INSERT INTO login_attempts (id, email, ip_hash, at, ok) VALUES (?, ?, ?, ?, ?)",
+  ).run(
     newId(),
     input.email.toLowerCase(),
     input.ip ? hashValue(input.ip) : "unknown",
@@ -18,10 +20,16 @@ export function recordLoginAttempt(
   );
 }
 
-export function recentFailureCount(db: Db, email: string, _ip?: string): number {
+export function recentFailureCount(
+  db: Db,
+  email: string,
+  _ip?: string,
+): number {
   const cutoff = new Date(Date.now() - WINDOW_MINUTES * 60_000).toISOString();
   const row = db
-    .prepare("SELECT COUNT(*) AS total FROM login_attempts WHERE ok = 0 AND at > ? AND email = ?")
+    .prepare(
+      "SELECT COUNT(*) AS total FROM login_attempts WHERE ok = 0 AND at > ? AND email = ?",
+    )
     .get(cutoff, email.toLowerCase()) as unknown as { total: number };
   return Number(row.total);
 }
@@ -32,5 +40,7 @@ export function isLockedOut(db: Db, email: string, ip?: string): boolean {
 
 export function clearFailedAttempts(db: Db, email: string): void {
   const cutoff = new Date(Date.now() - WINDOW_MINUTES * 60_000).toISOString();
-  db.prepare("DELETE FROM login_attempts WHERE ok = 0 AND at <= ? AND email = ?").run(cutoff, email.toLowerCase());
+  db.prepare(
+    "DELETE FROM login_attempts WHERE ok = 0 AND at <= ? AND email = ?",
+  ).run(cutoff, email.toLowerCase());
 }

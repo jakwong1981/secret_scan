@@ -37,6 +37,7 @@ export const authStatusSchema = z.object({
   passwordConfigured: z.boolean(),
   googleConfigured: z.boolean(),
   googleAllowedEmails: z.array(z.string()),
+  passwordMinLength: z.number(),
 });
 
 export const bootstrapRequestSchema = z.object({
@@ -51,6 +52,29 @@ export const loginRequestSchema = z.object({
 
 export const verifyPasswordRequestSchema = z.object({
   masterPassword: z.string().min(1),
+});
+
+/**
+ * Lower bound is the config floor (SKP_PASSWORD_MIN_LENGTH accepts 8-64); the
+ * authoritative length rule is server-side so the contract stays env-agnostic.
+ */
+export const registerRequestSchema = z.object({
+  email: z.email(),
+  masterPassword: z.string().min(8),
+  confirmPassword: z.string().min(8),
+});
+
+export const userListItemSchema = z.object({
+  id: z.string(),
+  email: z.string(),
+  methods: z.array(z.enum(["password", "google"])),
+  createdAt: ISO_DATE,
+  lastLoginAt: ISO_DATE.nullable(),
+});
+
+export const userListSchema = z.object({
+  items: z.array(userListItemSchema),
+  total: z.number(),
 });
 
 export const googleStartResponseSchema = z.object({
@@ -76,7 +100,12 @@ export const providerSchema = z.object({
   docsUrl: z.string().optional(),
 });
 
-export const sourceKindSchema = z.enum(["file", "env-file", "keychain", "regex-file"]);
+export const sourceKindSchema = z.enum([
+  "file",
+  "env-file",
+  "keychain",
+  "regex-file",
+]);
 
 export const sourceSchema = z.object({
   id: z.string(),
@@ -106,7 +135,27 @@ export const updateSourceSchema = z.object({
 // --- keys ------------------------------------------------------------------
 
 export const keyStatusSchema = z.enum(["active", "removed", "archived"]);
-export const verificationStatusSchema = z.enum(["unknown", "valid", "invalid", "error"]);
+export const verificationStatusSchema = z.enum([
+  "unknown",
+  "valid",
+  "invalid",
+  "error",
+]);
+
+/**
+ * One place a secret was found. Keys are deduped by value, so one secret can
+ * hold several homes (`~/.codex/auth.json` and `~/.claude/settings.json` can
+ * carry the same relay token); `sources` lists them all, oldest first, and
+ * includes the key's primary source.
+ */
+export const sourceSightingSchema = z.object({
+  sourceKind: sourceKindSchema,
+  sourcePath: z.string(),
+  sourcePointer: z.string().optional(),
+  envVarName: z.string().optional(),
+  firstSeenAt: ISO_DATE,
+  lastSeenAt: ISO_DATE,
+});
 
 export const maskedKeySchema = z.object({
   id: z.string(),
@@ -125,11 +174,20 @@ export const maskedKeySchema = z.object({
   lastVerifiedAt: ISO_DATE.optional(),
   verificationStatus: verificationStatusSchema,
   status: keyStatusSchema,
+  sources: z.array(sourceSightingSchema),
 });
 
 export const keyEventSchema = z.object({
   id: z.string(),
-  type: z.enum(["discovered", "revealed", "verified", "rotated", "removed", "archived", "deleted"]),
+  type: z.enum([
+    "discovered",
+    "revealed",
+    "verified",
+    "rotated",
+    "removed",
+    "archived",
+    "deleted",
+  ]),
   at: ISO_DATE,
   actor: z.string(),
   note: z.string().optional(),
@@ -164,7 +222,13 @@ export const keyListSchema = z.object({
 
 // --- scans -----------------------------------------------------------------
 
-export const scanStatusSchema = z.enum(["queued", "running", "completed", "failed", "canceled"]);
+export const scanStatusSchema = z.enum([
+  "queued",
+  "running",
+  "completed",
+  "failed",
+  "canceled",
+]);
 
 export const scanRunSchema = z.object({
   id: z.string(),
@@ -183,7 +247,14 @@ export const scanRunSchema = z.object({
 export const scanProgressEventSchema = z.object({
   runId: z.string(),
   at: ISO_DATE,
-  phase: z.enum(["started", "source", "candidate", "error", "finished", "canceled"]),
+  phase: z.enum([
+    "started",
+    "source",
+    "candidate",
+    "error",
+    "finished",
+    "canceled",
+  ]),
   sourceId: z.string().optional(),
   message: z.string(),
   counts: z
@@ -243,6 +314,9 @@ export const healthSchema = z.object({
 
 export type ApiErrorResponse = z.infer<typeof apiErrorResponseSchema>;
 export type AuthStatus = z.infer<typeof authStatusSchema>;
+export type RegisterRequest = z.infer<typeof registerRequestSchema>;
+export type UserListItem = z.infer<typeof userListItemSchema>;
+export type UserList = z.infer<typeof userListSchema>;
 export type BootstrapRequest = z.infer<typeof bootstrapRequestSchema>;
 export type LoginRequest = z.infer<typeof loginRequestSchema>;
 export type VerifyPasswordRequest = z.infer<typeof verifyPasswordRequestSchema>;
@@ -253,6 +327,7 @@ export type Source = z.infer<typeof sourceSchema>;
 export type SourceKind = z.infer<typeof sourceKindSchema>;
 export type CreateSourceInput = z.infer<typeof createSourceSchema>;
 export type UpdateSourceInput = z.infer<typeof updateSourceSchema>;
+export type SourceSighting = z.infer<typeof sourceSightingSchema>;
 export type MaskedKey = z.infer<typeof maskedKeySchema>;
 export type KeyEvent = z.infer<typeof keyEventSchema>;
 export type KeyDetail = z.infer<typeof keyDetailSchema>;

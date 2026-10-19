@@ -18,6 +18,8 @@ export interface ParsedEntry {
   pointer: string;
   keyName: string;
   value: string;
+  /** Sibling fields that name the owner of the value (`provider: deepseek`). */
+  context?: string[];
 }
 
 export interface SourceEvidence {
@@ -34,7 +36,8 @@ export interface Candidate extends SourceEvidence {
   value?: string;
 }
 
-export type ScanPhase = "started" | "source" | "candidate" | "error" | "finished" | "canceled";
+export type ScanPhase =
+  "started" | "source" | "candidate" | "error" | "finished" | "canceled";
 
 export interface ScanEvent {
   runId: string;

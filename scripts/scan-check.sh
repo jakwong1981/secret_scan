@@ -25,7 +25,8 @@ cleanup() {
 }
 trap cleanup EXIT
 
-mkdir -p "$FIXTURE_HOME/.codex" "$FIXTURE_HOME/.ollama" "$WORK/data" "$WORK/certs" "$WORK/secrets"
+mkdir -p "$FIXTURE_HOME/.codex" "$FIXTURE_HOME/.ollama" "$WORK/data" "$WORK/certs" "$WORK/secrets" \
+  "$FIXTURE_HOME/.pi/agent" "$FIXTURE_HOME/.qwen" "$FIXTURE_HOME/.continue"
 
 log "creating synthetic fixture home ($FIXTURE_HOME)"
 cat > "$FIXTURE_HOME/.codex/auth.json" <<'EOF'
@@ -42,6 +43,22 @@ cat > "$FIXTURE_HOME/.zshrc" <<'EOF'
 export ANTHROPIC_API_KEY="sk-ant-test-Zyxwvutsrqponmlkjihgfedcba"
 export GITHUB_TOKEN="ghp_testtokenabcdefghijklmnop12"
 export PATH="/usr/bin:/bin"
+EOF
+cat > "$FIXTURE_HOME/.pi/agent/auth.json" <<'EOF'
+{
+  "kimi-coding": { "type": "oauth", "access": "e30.eyJhbGciOiJSUzI1NiJ9.kimi-access-signature" },
+  "qwen-token-plan-individual": { "type": "oauth", "key": "sk-sp-test-AbCdEfGhIjKlMnOpQrStUvWxYz0123" }
+}
+EOF
+cat > "$FIXTURE_HOME/.qwen/token" <<'EOF'
+sk-sp-test-Zyxwvutsrqponmlkjihgfedcba0123
+EOF
+cat > "$FIXTURE_HOME/.continue/config.yaml" <<'EOF'
+models:
+  - name: DeepSeek Coder
+    provider: deepseek
+    model: deepseek-coder
+    apiKey: sk-test7ade33b3fe744b83bb017e0efb437dca
 EOF
 
 openssl rand -base64 32 > "$WORK/secrets/vault_master_key"
@@ -93,8 +110,8 @@ $CURL -o /dev/null -w '%{http_code}' "$BASE/keys" | grep -q '^401$' || die "keys
 
 log "running scan over the fixture home"
 SCAN_JSON="$($CURL -b "$COOKIE_JAR" -X POST "$BASE/scans")"
-TOTAL="$(printf '%s' "$SCAN_JSON" | node -e "let s='';process.stdin.on('data',d=>s+=d).on('end',()=>{const j=JSON.parse(s);const n=j.data?.outcome?.counts?.totalCount ?? -1;if(n===4)process.stdout.write('4');else process.stderr.write('expected 4 keys, got '+n+'\n');})")"
-[ "$TOTAL" = "4" ] || { printf '%s\n' "$SCAN_JSON" >&2; die "scan found an unexpected number of keys ($TOTAL)"; }
+TOTAL="$(printf '%s' "$SCAN_JSON" | node -e "let s='';process.stdin.on('data',d=>s+=d).on('end',()=>{const j=JSON.parse(s);const n=j.data?.outcome?.counts?.totalCount ?? -1;if(n===8)process.stdout.write('8');else process.stderr.write('expected 8 keys, got '+n+'\n');})")"
+[ "$TOTAL" = "8" ] || { printf '%s\n' "$SCAN_JSON" >&2; die "scan found an unexpected number of keys ($TOTAL)"; }
 
 log "asserting provider classification"
 KEYS_JSON="$($CURL -b "$COOKIE_JAR" "$BASE/keys?limit=20&sort=provider")"
@@ -103,7 +120,7 @@ let s='';
 process.stdin.on('data', (d) => (s += d)).on('end', () => {
   const items = JSON.parse(s).data.items;
   const providers = items.map((k) => k.provider).sort().join(',');
-  if (providers !== 'anthropic,anthropic,github,huggingface') {
+  if (providers !== 'anthropic,anthropic,deepseek,github,huggingface,moonshot,qwen,qwen') {
     process.stderr.write('unexpected classification: ' + providers + '\n');
     process.exit(1);
   }

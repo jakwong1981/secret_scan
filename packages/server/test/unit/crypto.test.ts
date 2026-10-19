@@ -1,5 +1,9 @@
 import { describe, expect, it } from "vitest";
-import { fingerprint, hashPassword, verifyPassword } from "../../src/core/crypto/password.js";
+import {
+  fingerprint,
+  hashPassword,
+  verifyPassword,
+} from "../../src/core/crypto/password.js";
 import { maskSecret } from "../../src/core/crypto/mask.js";
 import { decryptSecret, encryptSecret } from "../../src/core/crypto/vault.js";
 
@@ -20,7 +24,9 @@ describe("password hashing", () => {
 
 describe("masking", () => {
   it("keeps head and tail only", () => {
-    expect(maskSecret("sk-ant-api03-AdT1234567890wXyZ")).toBe("sk-ant••••••wXyZ");
+    expect(maskSecret("sk-ant-api03-AdT1234567890wXyZ")).toBe(
+      "sk-ant••••••wXyZ",
+    );
   });
 
   it("fully masks short values", () => {
@@ -44,7 +50,10 @@ describe("vault envelope", () => {
 
   it("detects tampering with the ciphertext", () => {
     const envelope = encryptSecret("sk-ant-tamper-check");
-    const tampered = { ...envelope, cipherText: Buffer.from(envelope.cipherText, "base64").toString("base64") };
+    const tampered = {
+      ...envelope,
+      cipherText: Buffer.from(envelope.cipherText, "base64").toString("base64"),
+    };
     const flipped = Buffer.from(tampered.cipherText, "base64");
     flipped[0] = (flipped[0] ?? 0) ^ 0xff;
     tampered.cipherText = flipped.toString("base64");

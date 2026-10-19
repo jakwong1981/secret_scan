@@ -8,12 +8,19 @@ import { logger } from "../../core/logging/logger.js";
  */
 export function startHttpRedirector(port: number, httpsPort: number): Server {
   const server = createServer((request, response) => {
-    const host = (request.headers.host ?? `127.0.0.1:${httpsPort}`).split(":")[0] ?? "127.0.0.1";
-    response.writeHead(308, { location: `https://${host}:${httpsPort}${request.url ?? "/"}` });
+    const host =
+      (request.headers.host ?? `127.0.0.1:${httpsPort}`).split(":")[0] ??
+      "127.0.0.1";
+    response.writeHead(308, {
+      location: `https://${host}:${httpsPort}${request.url ?? "/"}`,
+    });
     response.end();
   });
   server.listen(port, env.SKP_HOST, () => {
-    logger.info({ port, host: env.SKP_HOST, httpsPort }, "http -> https redirector listening");
+    logger.info(
+      { port, host: env.SKP_HOST, httpsPort },
+      "http -> https redirector listening",
+    );
   });
   return server;
 }

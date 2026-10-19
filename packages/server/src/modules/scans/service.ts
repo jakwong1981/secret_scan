@@ -7,13 +7,19 @@ import { runScan } from "../../infra/scanner/scanner.js";
 const EVENT_BUFFER = 500;
 
 export interface ScanService {
-  start(input: { triggerKind: "manual" | "schedule"; actor: string }): Promise<ScanOutcome>;
+  start(input: {
+    triggerKind: "manual" | "schedule";
+    actor: string;
+  }): Promise<ScanOutcome>;
   cancel(runId: string): boolean;
   eventsFor(runId: string): ScanEvent[];
   sourcesProvider(): SourceDefinition[];
 }
 
-export function createScanService(db: Db, sourcesProvider: () => SourceDefinition[]): ScanService {
+export function createScanService(
+  db: Db,
+  sourcesProvider: () => SourceDefinition[],
+): ScanService {
   const buffers = new Map<string, ScanEvent[]>();
   const controllers = new Map<string, AbortController>();
 

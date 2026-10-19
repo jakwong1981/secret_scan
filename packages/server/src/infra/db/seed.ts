@@ -5,14 +5,18 @@ import { env } from "../../config/env.js";
 
 /**
  * Seeds the provider catalogue and the default source registry.
- * `INSERT OR IGNORE` keeps owner customisations (disabled/enabled, added paths)
- * intact across restarts and upgrades.
+ * Labels, hints and priority follow the code registry; the owner's enabled
+ * toggle and any edited path survive, so a re-seed never re-arms a source the
+ * owner switched off.
  */
 export function seedRegistry(db: Db): void {
   for (const provider of PROVIDER_REGISTRY) {
     db.prepare(
-      `INSERT OR IGNORE INTO providers (id, label, key_prefixes, env_hints, docs_url, created_at)
-       VALUES (?, ?, ?, ?, ?, ?)`,
+      `INSERT INTO providers (id, label, key_prefixes, env_hints, docs_url, created_at)
+       VALUES (?, ?, ?, ?, ?, ?)
+       ON CONFLICT(id) DO UPDATE SET label = excluded.label,
+         key_prefixes = excluded.key_prefixes, env_hints = excluded.env_hints,
+         docs_url = excluded.docs_url`,
     ).run(
       provider.id,
       provider.label,
@@ -25,10 +29,13 @@ export function seedRegistry(db: Db): void {
 
   for (const source of DEFAULT_SOURCES) {
     // Keychain access is impossible in containers / CI hosts; honour the switch.
-    const enabled = source.kind === "keychain" ? env.SKP_KEYCHAIN_SCAN : source.enabled;
+    const enabled =
+      source.kind === "keychain" ? env.SKP_KEYCHAIN_SCAN : source.enabled;
     db.prepare(
-      `INSERT OR IGNORE INTO sources (id, kind, path, parser, provider_hint, enabled, priority, notes, created_at)
-       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+      `INSERT INTO sources (id, kind, path, parser, provider_hint, enabled, priority, notes, created_at)
+       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
+       ON CONFLICT(id) DO UPDATE SET provider_hint = excluded.provider_hint,
+         priority = excluded.priority, notes = excluded.notes`,
     ).run(
       source.id,
       source.kind,

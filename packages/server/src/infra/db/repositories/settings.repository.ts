@@ -6,7 +6,9 @@ import { googleAllowedEmails } from "../../../config/env.js";
 const SINGLETON_ID = 1;
 
 export function readSettings(db: Db): SettingsRow {
-  const row = db.prepare("SELECT * FROM settings WHERE id = ?").get(SINGLETON_ID) as unknown as SettingsRow | null;
+  const row = db
+    .prepare("SELECT * FROM settings WHERE id = ?")
+    .get(SINGLETON_ID) as unknown as SettingsRow | null;
   if (row) return row;
   db.prepare(
     `INSERT INTO settings (id, google_allowed_emails, session_idle_minutes, session_absolute_hours,
@@ -21,14 +23,18 @@ export function readSettings(db: Db): SettingsRow {
     env.SKP_SCAN_ROOT,
     new Date().toISOString(),
   );
-  const created = db.prepare("SELECT * FROM settings WHERE id = ?").get(SINGLETON_ID) as unknown as SettingsRow;
+  const created = db
+    .prepare("SELECT * FROM settings WHERE id = ?")
+    .get(SINGLETON_ID) as unknown as SettingsRow;
   return created;
 }
 
 export function allowedGoogleEmails(db: Db): string[] {
   const stored = JSON.parse(readSettings(db).google_allowed_emails) as unknown;
   if (Array.isArray(stored) && stored.length > 0) {
-    return (stored as unknown[]).filter((e): e is string => typeof e === "string");
+    return (stored as unknown[]).filter(
+      (e): e is string => typeof e === "string",
+    );
   }
   return googleAllowedEmails();
 }
@@ -44,9 +50,12 @@ export function updateSettings(
 ): SettingsRow {
   const current = readSettings(db);
   const next = {
-    googleAllowedEmails: input.googleAllowedEmails ?? JSON.parse(current.google_allowed_emails),
-    sessionIdleMinutes: input.sessionIdleMinutes ?? current.session_idle_minutes,
-    sessionAbsoluteHours: input.sessionAbsoluteHours ?? current.session_absolute_hours,
+    googleAllowedEmails:
+      input.googleAllowedEmails ?? JSON.parse(current.google_allowed_emails),
+    sessionIdleMinutes:
+      input.sessionIdleMinutes ?? current.session_idle_minutes,
+    sessionAbsoluteHours:
+      input.sessionAbsoluteHours ?? current.session_absolute_hours,
     verifyKeysOptIn: input.verifyKeysOptIn ?? current.verify_keys_opt_in === 1,
   };
   db.prepare(
@@ -65,7 +74,10 @@ export function updateSettings(
   return readSettings(db);
 }
 
-export function sessionLimits(db: Db): { idleMinutes: number; absoluteHours: number } {
+export function sessionLimits(db: Db): {
+  idleMinutes: number;
+  absoluteHours: number;
+} {
   const settings = readSettings(db);
   return {
     idleMinutes: Number(settings.session_idle_minutes),

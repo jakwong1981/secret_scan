@@ -6,6 +6,25 @@ import { DashboardPage } from "../features/DashboardPage";
 import { api } from "../api/client";
 import type { KeyList } from "@skp/contracts";
 
+const SHARED_TOKEN_SOURCES = [
+  {
+    sourceKind: "file" as const,
+    sourcePath: "/Users/owner/.codex/auth.json",
+    sourcePointer: "OPENAI_API_KEY",
+    envVarName: "OPENAI_API_KEY",
+    firstSeenAt: "2026-08-01T10:00:00.000Z",
+    lastSeenAt: "2026-08-05T10:00:00.000Z",
+  },
+  {
+    sourceKind: "file" as const,
+    sourcePath: "/Users/owner/.claude/settings.json",
+    sourcePointer: "env.ANTHROPIC_AUTH_TOKEN",
+    envVarName: undefined,
+    firstSeenAt: "2026-08-03T10:00:00.000Z",
+    lastSeenAt: "2026-08-05T10:00:00.000Z",
+  },
+];
+
 const KEYS: KeyList = {
   total: 2,
   items: [
@@ -25,6 +44,7 @@ const KEYS: KeyList = {
       lastVerifiedAt: undefined,
       verificationStatus: "valid",
       status: "active",
+      sources: SHARED_TOKEN_SOURCES,
     },
     {
       id: "k2",
@@ -42,6 +62,16 @@ const KEYS: KeyList = {
       lastVerifiedAt: undefined,
       verificationStatus: "unknown",
       status: "removed",
+      sources: [
+        {
+          sourceKind: "keychain" as const,
+          sourcePath: "keychain:login:generic-password",
+          sourcePointer: "GitHub CLI (pat)",
+          envVarName: undefined,
+          firstSeenAt: "2026-07-20T10:00:00.000Z",
+          lastSeenAt: "2026-08-05T10:00:00.000Z",
+        },
+      ],
     },
   ],
 };
@@ -92,7 +122,9 @@ describe("DashboardPage", () => {
   });
 
   it("renders masked keys with provider, source and date added", async () => {
-    const queryClient = new QueryClient({ defaultOptions: { queries: { retry: false } } });
+    const queryClient = new QueryClient({
+      defaultOptions: { queries: { retry: false } },
+    });
     render(
       <QueryClientProvider client={queryClient}>
         <MemoryRouter>
@@ -106,17 +138,51 @@ describe("DashboardPage", () => {
     expect(rows).toHaveLength(3);
 
     const anthropicRow = rows[1] as HTMLElement;
-    expect(within(anthropicRow).getByText("Anthropic (Claude)")).toBeInTheDocument();
-    expect(within(anthropicRow).getByText("sk-ant••••abcd")).toBeInTheDocument();
-    expect(within(anthropicRow).getByTitle(/\.codex\/auth\.json/)).toBeInTheDocument();
+    expect(
+      within(anthropicRow).getByText("Anthropic (Claude)"),
+    ).toBeInTheDocument();
+    expect(
+      within(anthropicRow).getByText("sk-ant••••abcd"),
+    ).toBeInTheDocument();
+    expect(
+      within(anthropicRow).getByTitle(/\.codex\/auth\.json/),
+    ).toBeInTheDocument();
     expect(within(anthropicRow).getByText("active")).toBeInTheDocument();
 
     const githubRow = rows[2] as HTMLElement;
     expect(within(githubRow).getByText("macOS Keychain")).toBeInTheDocument();
   });
 
+  it("flags a secret that lives in several places", async () => {
+    render(
+      <QueryClientProvider
+        client={
+          new QueryClient({ defaultOptions: { queries: { retry: false } } })
+        }
+      >
+        <MemoryRouter>
+          <DashboardPage />
+        </MemoryRouter>
+      </QueryClientProvider>,
+    );
+
+    const rows = await screen.findAllByRole("row");
+    const anthropicRow = rows[1] as HTMLElement;
+    const more = within(anthropicRow).getByText("+1 more location");
+    expect(more).toBeInTheDocument();
+    expect(more).toHaveAttribute(
+      "title",
+      "/Users/owner/.claude/settings.json → env.ANTHROPIC_AUTH_TOKEN",
+    );
+    expect(
+      within(rows[2] as HTMLElement).queryByText(/more location/),
+    ).toBeNull();
+  });
+
   it("shows the summary counters", async () => {
-    const queryClient = new QueryClient({ defaultOptions: { queries: { retry: false } } });
+    const queryClient = new QueryClient({
+      defaultOptions: { queries: { retry: false } },
+    });
     render(
       <QueryClientProvider client={queryClient}>
         <MemoryRouter>

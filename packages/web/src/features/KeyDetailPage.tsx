@@ -3,7 +3,15 @@ import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { Link, useParams } from "react-router-dom";
 import { api } from "../api/client";
 import type { VerifyKeyResponse } from "@skp/contracts";
-import { Alert, Badge, Button, Card, Field, Input, Spinner } from "../components/ui";
+import {
+  Alert,
+  Badge,
+  Button,
+  Card,
+  Field,
+  Input,
+  Spinner,
+} from "../components/ui";
 import { formatDate } from "../components/ui";
 import { useReauth } from "../hooks/useReauth";
 
@@ -11,10 +19,16 @@ export function KeyDetailPage() {
   const params = useParams<{ id: string }>();
   const id = params.id ?? "";
   const queryClient = useQueryClient();
-  const detail = useQuery({ queryKey: ["key", id], queryFn: () => api.keys.detail(id) });
+  const detail = useQuery({
+    queryKey: ["key", id],
+    queryFn: () => api.keys.detail(id),
+  });
 
   const [password, setPassword] = useState("");
-  const [revealed, setRevealed] = useState<{ value: string; expiresAt: string } | null>(null);
+  const [revealed, setRevealed] = useState<{
+    value: string;
+    expiresAt: string;
+  } | null>(null);
   const [verified, setVerified] = useState<VerifyKeyResponse | null>(null);
   const [label, setLabel] = useState("");
   const reauth = useReauth();
@@ -54,8 +68,13 @@ export function KeyDetailPage() {
   if (detail.isError || !detail.data) {
     return (
       <div className="space-y-4">
-        <Alert tone="error">This key could not be loaded (it may have been deleted).</Alert>
-        <Link to="/" className="text-sm font-medium text-accent hover:underline">
+        <Alert tone="error">
+          This key could not be loaded (it may have been deleted).
+        </Alert>
+        <Link
+          to="/"
+          className="text-sm font-medium text-accent hover:underline"
+        >
           ← Back to dashboard
         </Link>
       </div>
@@ -64,7 +83,12 @@ export function KeyDetailPage() {
 
   const key = detail.data;
   const secondsLeft = revealed
-    ? Math.max(0, Math.round((new Date(revealed.expiresAt).getTime() - Date.now()) / 1000))
+    ? Math.max(
+        0,
+        Math.round(
+          (new Date(revealed.expiresAt).getTime() - Date.now()) / 1000,
+        ),
+      )
     : 0;
 
   return (
@@ -75,10 +99,14 @@ export function KeyDetailPage() {
         </Link>
         <h1 className="mt-2 text-xl font-semibold tracking-tight text-ink">
           {key.providerLabel}
-          {key.label ? <span className="text-muted"> · {key.label}</span> : null}
+          {key.label ? (
+            <span className="text-muted"> · {key.label}</span>
+          ) : null}
         </h1>
         <div className="mt-2 flex flex-wrap gap-2">
-          <Badge tone={key.status === "active" ? "ok" : "warn"}>{key.status}</Badge>
+          <Badge tone={key.status === "active" ? "ok" : "warn"}>
+            {key.status}
+          </Badge>
           <Badge tone={key.verificationStatus === "valid" ? "ok" : "neutral"}>
             {key.verificationStatus}
           </Badge>
@@ -92,10 +120,13 @@ export function KeyDetailPage() {
             {revealed ? revealed.value : key.maskedValue}
           </p>
           {revealed ? (
-            <p className="mt-2 text-xs text-warn">Auto-hides in {secondsLeft}s — never paste this anywhere.</p>
+            <p className="mt-2 text-xs text-warn">
+              Auto-hides in {secondsLeft}s — never paste this anywhere.
+            </p>
           ) : (
             <p className="mt-2 text-xs text-muted">
-              Revealing requires re-authentication; the value is decrypted only for this response.
+              Revealing requires re-authentication; the value is decrypted only
+              for this response.
             </p>
           )}
 
@@ -115,8 +146,16 @@ export function KeyDetailPage() {
                 {(reveal.error as Error).message ?? "Reveal failed"}
               </Alert>
             ) : null}
-            <Button onClick={() => reveal.mutate()} disabled={reveal.isPending} title="Decrypt and display">
-              {reveal.isPending ? "Decrypting…" : revealed ? "Reveal again" : "Reveal value"}
+            <Button
+              onClick={() => reveal.mutate()}
+              disabled={reveal.isPending}
+              title="Decrypt and display"
+            >
+              {reveal.isPending
+                ? "Decrypting…"
+                : revealed
+                  ? "Reveal again"
+                  : "Reveal value"}
             </Button>
           </div>
         </Card>
@@ -125,18 +164,56 @@ export function KeyDetailPage() {
           <h2 className="text-sm font-semibold text-ink">Evidence</h2>
           <dl className="mt-2 divide-y divide-line">
             <Field label="Source">
-              {key.sourceKind === "keychain" ? "macOS Keychain (metadata only)" : key.sourcePath}
+              {key.sourceKind === "keychain"
+                ? "macOS Keychain (metadata only)"
+                : key.sourcePath}
             </Field>
-            <Field label={key.sourceKind === "keychain" ? "Item" : "Location in file"}>
+            {key.sources.length > 1 ? (
+              <Field label={`Found in ${key.sources.length} locations`}>
+                <ul className="space-y-2" aria-label="all locations">
+                  {key.sources.map((source) => (
+                    <li
+                      key={`${source.sourcePath}:${source.sourcePointer ?? ""}`}
+                    >
+                      <span className="font-mono text-xs text-ink">
+                        {source.sourcePath}
+                      </span>
+                      {source.sourcePointer ? (
+                        <span className="block text-xs text-muted">
+                          {source.sourcePointer}
+                        </span>
+                      ) : null}
+                      <span className="block text-xs text-muted/80">
+                        first seen {formatDate(source.firstSeenAt)} · last seen{" "}
+                        {formatDate(source.lastSeenAt)}
+                      </span>
+                    </li>
+                  ))}
+                </ul>
+              </Field>
+            ) : null}
+            <Field
+              label={
+                key.sourceKind === "keychain" ? "Item" : "Location in file"
+              }
+            >
               {key.sourcePointer ?? "—"}
             </Field>
             <Field label="Environment variable">{key.envVarName ?? "—"}</Field>
-            <Field label="Date added (file mtime)">{formatDate(key.sourceMtime)}</Field>
-            <Field label="First seen by SecretKeyPreview">{formatDate(key.firstSeenAt)}</Field>
+            <Field label="Date added (file mtime)">
+              {formatDate(key.sourceMtime)}
+            </Field>
+            <Field label="First seen by SecretKeyPreview">
+              {formatDate(key.firstSeenAt)}
+            </Field>
             <Field label="Last seen">{formatDate(key.lastSeenAt)}</Field>
-            <Field label="Last verified">{formatDate(key.lastVerifiedAt)}</Field>
+            <Field label="Last verified">
+              {formatDate(key.lastVerifiedAt)}
+            </Field>
             <Field label="Fingerprint">
-              <span className="break-all font-mono text-xs">{key.fingerprint}</span>
+              <span className="break-all font-mono text-xs">
+                {key.fingerprint}
+              </span>
             </Field>
           </dl>
         </Card>
@@ -145,10 +222,18 @@ export function KeyDetailPage() {
       <Card className="p-5">
         <h2 className="text-sm font-semibold text-ink">Actions</h2>
         <div className="mt-3 flex flex-wrap gap-3">
-          <Button variant="secondary" onClick={() => verify.mutate()} disabled={verify.isPending}>
+          <Button
+            variant="secondary"
+            onClick={() => verify.mutate()}
+            disabled={verify.isPending}
+          >
             {verify.isPending ? "Verifying…" : "Verify with provider"}
           </Button>
-          <Button variant="danger" onClick={() => remove.mutate()} disabled={remove.isPending}>
+          <Button
+            variant="danger"
+            onClick={() => remove.mutate()}
+            disabled={remove.isPending}
+          >
             Delete from vault
           </Button>
         </div>
@@ -166,11 +251,18 @@ export function KeyDetailPage() {
         <h2 className="text-sm font-semibold text-ink">Lifecycle</h2>
         <ol className="mt-3 space-y-2">
           {key.events.map((event) => (
-            <li key={event.id} className="flex flex-wrap items-center gap-2 text-xs text-muted">
-              <Badge tone={event.type === "revealed" ? "warn" : "neutral"}>{event.type}</Badge>
+            <li
+              key={event.id}
+              className="flex flex-wrap items-center gap-2 text-xs text-muted"
+            >
+              <Badge tone={event.type === "revealed" ? "warn" : "neutral"}>
+                {event.type}
+              </Badge>
               <span>{formatDate(event.at)}</span>
               <span className="text-ink">by {event.actor}</span>
-              {event.note ? <span className="text-muted">— {event.note}</span> : null}
+              {event.note ? (
+                <span className="text-muted">— {event.note}</span>
+              ) : null}
             </li>
           ))}
         </ol>

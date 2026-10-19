@@ -1,7 +1,15 @@
 import { useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { api } from "../api/client";
-import { Alert, Badge, Button, Card, Field, Input, Spinner } from "../components/ui";
+import {
+  Alert,
+  Badge,
+  Button,
+  Card,
+  Field,
+  Input,
+  Spinner,
+} from "../components/ui";
 import { useReauth } from "../hooks/useReauth";
 
 interface SettingsView {
@@ -16,8 +24,18 @@ interface SettingsView {
 
 export function SettingsPage() {
   const queryClient = useQueryClient();
-  const settings = useQuery({ queryKey: ["settings"], queryFn: api.settings.get });
-  const sources = useQuery({ queryKey: ["sources"], queryFn: api.sources.list });
+  const settings = useQuery({
+    queryKey: ["settings"],
+    queryFn: api.settings.get,
+  });
+  const sources = useQuery({
+    queryKey: ["sources"],
+    queryFn: api.sources.list,
+  });
+  const members = useQuery({
+    queryKey: ["vault-members"],
+    queryFn: api.auth.users,
+  });
 
   const reauth = useReauth();
   const [emails, setEmails] = useState("");
@@ -71,23 +89,35 @@ export function SettingsPage() {
   return (
     <div className="space-y-6">
       <div>
-        <h1 className="text-xl font-semibold tracking-tight text-ink">Settings</h1>
-        <p className="text-sm text-muted">Owner account, scan registry and security policy.</p>
+        <h1 className="text-xl font-semibold tracking-tight text-ink">
+          Settings
+        </h1>
+        <p className="text-sm text-muted">
+          Owner account, scan registry and security policy.
+        </p>
       </div>
 
       {message ? <Alert tone="success">{message}</Alert> : null}
       {reauth.error ? <Alert tone="error">{reauth.error}</Alert> : null}
-      {save.isError ? <Alert tone="error">{(save.error as Error).message}</Alert> : null}
+      {save.isError ? (
+        <Alert tone="error">{(save.error as Error).message}</Alert>
+      ) : null}
 
       <Card className="p-5">
         <h2 className="text-sm font-semibold text-ink">Security policy</h2>
         <div className="mt-3 grid gap-4 sm:grid-cols-2">
-          <Field label="Idle timeout (minutes)">{view.sessionIdleMinutes}</Field>
-          <Field label="Absolute session (hours)">{view.sessionAbsoluteHours}</Field>
+          <Field label="Idle timeout (minutes)">
+            {view.sessionIdleMinutes}
+          </Field>
+          <Field label="Absolute session (hours)">
+            {view.sessionAbsoluteHours}
+          </Field>
           <Field label="Public origin">{view.publicOrigin}</Field>
           <Field label="Scan root">{view.scanRoot}</Field>
           <Field label="Google sign-in">
-            {view.googleConfigured ? "configured" : "not configured (SKP_GOOGLE_CLIENT_ID missing)"}
+            {view.googleConfigured
+              ? "configured"
+              : "not configured (SKP_GOOGLE_CLIENT_ID missing)"}
           </Field>
           <Field label="Transport">HTTPS only (TLS 1.3)</Field>
         </div>
@@ -109,7 +139,8 @@ export function SettingsPage() {
               onChange={(event) => setVerifyOptIn(event.target.checked)}
               className="h-4 w-4 rounded border-line"
             />
-            Enable live key verification (sends one cheap request per provider probe)
+            Enable live key verification (sends one cheap request per provider
+            probe)
           </label>
           <div className="space-y-3 rounded-lg border border-line p-3">
             <Input
@@ -127,7 +158,9 @@ export function SettingsPage() {
       </Card>
 
       <Card className="p-5">
-        <h2 className="text-sm font-semibold text-ink">Change master password</h2>
+        <h2 className="text-sm font-semibold text-ink">
+          Change master password
+        </h2>
         <div className="mt-3 grid gap-3 sm:grid-cols-2">
           <Input
             label="New master password"
@@ -139,7 +172,11 @@ export function SettingsPage() {
           />
         </div>
         <div className="mt-3">
-          <Button variant="secondary" onClick={() => changePassword.mutate()} disabled={changePassword.isPending}>
+          <Button
+            variant="secondary"
+            onClick={() => changePassword.mutate()}
+            disabled={changePassword.isPending}
+          >
             {changePassword.isPending ? "Changing…" : "Change password"}
           </Button>
         </div>
@@ -149,7 +186,8 @@ export function SettingsPage() {
         <h2 className="text-sm font-semibold text-ink">Scan registry</h2>
         <p className="mt-1 text-sm text-muted">
           {sources.data?.items.length ?? 0} sources configured,{" "}
-          {sources.data?.items.filter((source) => source.enabled).length ?? 0} enabled. Paths are read-only.
+          {sources.data?.items.filter((source) => source.enabled).length ?? 0}{" "}
+          enabled. Paths are read-only.
         </p>
         <div className="mt-3 max-h-72 overflow-y-auto">
           <table className="w-full text-left text-xs">
@@ -176,12 +214,62 @@ export function SettingsPage() {
                   <td className="py-2 break-all text-muted">{source.path}</td>
                   <td className="py-2 text-muted">{source.parser}</td>
                   <td className="py-2">
-                    <Badge tone={source.enabled ? "ok" : "warn"}>{source.enabled ? "yes" : "no"}</Badge>
+                    <Badge tone={source.enabled ? "ok" : "warn"}>
+                      {source.enabled ? "yes" : "no"}
+                    </Badge>
                   </td>
                 </tr>
               ))}
             </tbody>
           </table>
+        </div>
+      </Card>
+
+      <Card className="p-5">
+        <h2 className="text-sm font-semibold text-ink">Vault members</h2>
+        <p className="mt-1 text-sm text-muted">
+          Accounts that can sign in and preview this vault.
+        </p>
+        <div className="mt-3">
+          {members.isPending ? <Spinner label="Loading members" /> : null}
+          {members.isError ? (
+            <Alert tone="error">Could not load members.</Alert>
+          ) : null}
+          {members.data && members.data.total === 0 ? (
+            <p className="text-sm text-muted">No accounts yet.</p>
+          ) : null}
+          {members.data && members.data.total > 0 ? (
+            <table className="w-full text-left text-xs">
+              <thead className="text-muted">
+                <tr>
+                  <th scope="col" className="py-2 font-medium">
+                    Email
+                  </th>
+                  <th scope="col" className="py-2 font-medium">
+                    Methods
+                  </th>
+                  <th scope="col" className="py-2 font-medium">
+                    Last login
+                  </th>
+                </tr>
+              </thead>
+              <tbody>
+                {members.data.items.map((member) => (
+                  <tr key={member.id} className="border-t border-line">
+                    <td className="py-2 text-ink">{member.email}</td>
+                    <td className="py-2 text-muted">
+                      {member.methods.join(", ")}
+                    </td>
+                    <td className="py-2 text-muted">
+                      {member.lastLoginAt
+                        ? new Date(member.lastLoginAt).toLocaleString()
+                        : "never"}
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          ) : null}
         </div>
       </Card>
     </div>

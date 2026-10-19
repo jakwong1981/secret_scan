@@ -1,6 +1,10 @@
 import type { FastifyInstance } from "fastify";
 import { SESSION_COOKIE } from "../core/http/session-cookie.js";
-import { assertSensitiveScope, resolveSession, touchForRequest } from "../modules/auth/service.js";
+import {
+  assertSensitiveScope,
+  resolveSession,
+  touchForRequest,
+} from "../modules/auth/service.js";
 import { UnauthenticatedError } from "../core/errors/app-error.js";
 
 /**

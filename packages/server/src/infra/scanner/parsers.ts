@@ -5,45 +5,102 @@ import type { ParsedEntry, ParserId } from "./types.js";
 
 const SENSITIVE_KEY_NAME =
   /(api[-_ ]?key|apikey|access[-_ ]?key|secret|token|password|passwd|credential|refresh[-_ ]?token|id[-_ ]?token|auth)/i;
-const PLACEHOLDER = /^(\.\.\.|x{3,}|changeme|change[_-]?me|your[-_ ].*|<.*>|null|undefined|true|false|)$/i;
+/** Standalone credential leaves: `key`, `access`, `refresh` (as in `~/.pi/agent/auth.json`). */
+const CREDENTIAL_LEAF =
+  /(?:^|[^a-z0-9])(?:key|access|refresh|credential)(?:$|[^a-z0-9])/i;
+const PLACEHOLDER =
+  /^(\.\.\.|x{3,}|changeme|change[_-]?me|your[-_ ].*|<.*>|null|undefined|true|false|)$/i;
 const MAX_DEPTH = 8;
 const MIN_LENGTH = 8;
+/** Another variable's name, not a secret: `DASHSCOPE_API_KEY`. */
+const ENV_VAR_NAME = /^[A-Z][A-Z0-9_]*$/;
+/** Dotted lowercase identifier: `video.upload`, `image.describe`. */
+const DOTTED_IDENTIFIER = /^[a-z][a-z0-9]*(?:\.[a-z0-9_-]+)+$/;
+/** A path reference, not a secret: `oauth/kimi-code-env-0e4f99…`. */
+const PATH_LIKE = /^[A-Za-z0-9_.-]+(?:\/[A-Za-z0-9_.-]+)+$/;
+const DIGITS_ONLY = /^\d+$/;
 
 function usableValue(value: string): boolean {
   if (value.length < MIN_LENGTH) return false;
   if (/\s/.test(value)) return false;
   if (PLACEHOLDER.test(value.trim())) return false;
+  // URLs, `plugin:figma` notices, `trn:service:…` ids and timestamps are not
+  // credentials, however credential-shaped their key name looks.
+  if (value.includes(":")) return false;
+  if (ENV_VAR_NAME.test(value)) return false;
+  if (DOTTED_IDENTIFIER.test(value)) return false;
+  if (PATH_LIKE.test(value)) return false;
+  if (DIGITS_ONLY.test(value)) return false;
   return true;
 }
 
 function looksSensitive(keyName: string): boolean {
-  return SENSITIVE_KEY_NAME.test(keyName);
+  return SENSITIVE_KEY_NAME.test(keyName) || CREDENTIAL_LEAF.test(keyName);
 }
 
-function flatten(value: unknown, pointer: string, keyName: string, depth: number, out: ParsedEntry[]): void {
+/**
+ * Sibling keys that name the owner of a value. `~/.continue/config.yaml`
+ * stores its credentials as `{ name: "DeepSeek Coder", provider: "deepseek",
+ * apiKey: … }`, so the pointer alone (`models[0].apiKey`) carries no vendor.
+ */
+const CONTEXT_KEY_NAME =
+  /^(provider|providerName|provider_name|vendor|name|label|service|apiName|api_name)$/i;
+const MAX_CONTEXT = 8;
+
+function contextOf(entries: Array<[string, unknown]>): string[] {
+  const context: string[] = [];
+  for (const [childKey, childValue] of entries) {
+    if (context.length >= MAX_CONTEXT) break;
+    if (typeof childValue !== "string" || childValue.length > 80) continue;
+    if (!CONTEXT_KEY_NAME.test(childKey)) continue;
+    if (context.includes(childValue)) continue;
+    context.push(childValue);
+  }
+  return context;
+}
+
+function flatten(
+  value: unknown,
+  pointer: string,
+  keyName: string,
+  depth: number,
+  out: ParsedEntry[],
+  context: string[],
+): void {
   if (depth > MAX_DEPTH) return;
   if (value === null || value === undefined) return;
   if (typeof value === "string") {
     if (!looksSensitive(keyName) || !usableValue(value)) return;
-    out.push({ pointer, keyName, value });
+    out.push({ pointer, keyName, value, context });
     return;
   }
   if (typeof value === "number" || typeof value === "boolean") return;
   if (Array.isArray(value)) {
-    value.forEach((item, index) => flatten(item, `${pointer}[${index}]`, keyName, depth + 1, out));
+    value.forEach((item, index) =>
+      flatten(item, `${pointer}[${index}]`, keyName, depth + 1, out, context),
+    );
     return;
   }
   if (typeof value === "object") {
-    for (const [childKey, childValue] of Object.entries(value as Record<string, unknown>)) {
+    const entries = Object.entries(value as Record<string, unknown>);
+    const childContext = contextOf(entries);
+    for (const [childKey, childValue] of entries) {
       const childPointer = pointer === "" ? childKey : `${pointer}.${childKey}`;
-      flatten(childValue, childPointer, childKey, depth + 1, out);
+      flatten(
+        childValue,
+        childPointer,
+        childKey,
+        depth + 1,
+        out,
+        childContext.length > 0 ? childContext : context,
+      );
     }
   }
 }
 
 export function flattenDocument(document: unknown): ParsedEntry[] {
   const out: ParsedEntry[] = [];
-  flatten(document, "", "", 0, out);
+  flatten(document, "", "", 0, out, []);
   return out;
 }
 
@@ -74,7 +131,11 @@ function stripJsonComments(text: string): string {
     }
     if (char === "/" && text[index + 1] === "*") {
       index += 2;
-      while (index < text.length && !(text[index] === "*" && text[index + 1] === "/")) index += 1;
+      while (
+        index < text.length &&
+        !(text[index] === "*" && text[index + 1] === "/")
+      )
+        index += 1;
       index += 2;
       continue;
     }
@@ -90,7 +151,9 @@ function stripTrailingCommas(text: string): string {
 
 export function parseJsonText(text: string): ParsedEntry[] {
   try {
-    const parsed: unknown = JSON.parse(stripTrailingCommas(stripJsonComments(text)));
+    const parsed: unknown = JSON.parse(
+      stripTrailingCommas(stripJsonComments(text)),
+    );
     return flattenDocument(parsed);
   } catch {
     return [];
@@ -118,7 +181,9 @@ export function parseDotenvText(text: string): ParsedEntry[] {
   for (const rawLine of text.split(/\r?\n/)) {
     const line = rawLine.trim();
     if (line === "" || line.startsWith("#")) continue;
-    const withoutExport = line.startsWith("export ") ? line.slice(7).trim() : line;
+    const withoutExport = line.startsWith("export ")
+      ? line.slice(7).trim()
+      : line;
     const separator = withoutExport.indexOf("=");
     if (separator <= 0) continue;
     const keyName = withoutExport.slice(0, separator).trim();
@@ -152,7 +217,11 @@ const RAW_PATTERNS: Array<{ id: string; pattern: RegExp }> = [
   { id: "npm", pattern: /npm_[A-Za-z0-9]{20,}/g },
   { id: "aws", pattern: /(?:AKIA|ASIA)[A-Z0-9]{12,}/g },
   { id: "ollama", pattern: /oll_[A-Za-z0-9]{20,}/g },
-  { id: "generic", pattern: /["']?[A-Za-z0-9_]*(?:api[_-]?key|token|secret)["']?\s*[:=]\s*["']?([A-Za-z0-9_-]{24,})["']?/gi },
+  {
+    id: "generic",
+    pattern:
+      /["']?[A-Za-z0-9_]*(?:api[_-]?key|token|secret)["']?\s*[:=]\s*["']?([A-Za-z0-9_-]{24,})["']?/gi,
+  },
 ];
 
 export function parseRawText(text: string): ParsedEntry[] {
@@ -162,15 +231,26 @@ export function parseRawText(text: string): ParsedEntry[] {
     const pattern = new RegExp(matcher.pattern.source, matcher.pattern.flags);
     let match: RegExpExecArray | null = pattern.exec(text);
     while (match !== null) {
-      const value = matcher.id === "generic" ? (match[1] ?? "") : (match[0] ?? "");
-      if (usableValue(value) && !entries.some((existing) => existing.value === value)) {
+      const value =
+        matcher.id === "generic" ? (match[1] ?? "") : (match[0] ?? "");
+      if (
+        usableValue(value) &&
+        !entries.some((existing) => existing.value === value)
+      ) {
         const keyName =
           matcher.id === "generic"
             ? (match[0] ?? "generic").slice(0, 40)
-            : genericKeys[entries.length % genericKeys.length] ?? "key";
+            : (genericKeys[entries.length % genericKeys.length] ?? "key");
         entries.push({ pointer: `raw:${matcher.id}`, keyName, value });
       }
       match = pattern.exec(text);
+    }
+  }
+  // A whole file that is one bare token (`~/.qwen/token`, DeepSeek's token file).
+  if (entries.length === 0) {
+    const bare = text.trim();
+    if (usableValue(bare)) {
+      entries.push({ pointer: "raw:token", keyName: "token", value: bare });
     }
   }
   return entries;
