@@ -5,6 +5,10 @@
 # warning. Prefers mkcert; falls back to a self-managed local CA via openssl.
 set -Eeuo pipefail
 
+# certs/ and .env live at the repo root; anchor there so the script works from any cwd.
+ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
+cd "$ROOT"
+
 CERTS_DIR="${SKP_CERTS_DIR:-./certs}"
 ENV_FILE="${ENV_FILE:-.env}"
 

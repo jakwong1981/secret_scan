@@ -19,12 +19,29 @@ import type {
   UserList,
   VerifyKeyResponse,
 } from "@skp/contracts";
+import { useSessionStore } from "../stores/session.store";
 
 // The server serves the SPA and the API from one origin, so requests stay
 // first-party and the SameSite=Strict session cookie is always sent. Pointing
 // the built bundle at a different host would make every POST a cross-origin
 // request the API does not answer with CORS headers.
 const BASE = "/api/v1";
+
+/**
+ * A `401 UNAUTHENTICATED` with the default message means the session cookie is
+ * absent, expired or revoked — the re-auth gate uses the same code but with
+ * "re-authentication required", so that case must keep the user signed in.
+ */
+function handleDeadSession(code: string, message: string | undefined): void {
+  if (code !== "UNAUTHENTICATED" || message !== "Authentication required") {
+    return;
+  }
+  const session = useSessionStore.getState();
+  if (session.user !== null) {
+    session.reset();
+    window.location.assign("/login");
+  }
+}
 
 export class ApiError extends Error {
   readonly code: string;
@@ -61,6 +78,10 @@ async function request<T>(path: string, init?: RequestInit): Promise<T> {
 
   if (!response.ok) {
     const envelope = body as Partial<Envelope<unknown>> | null;
+    handleDeadSession(
+      envelope?.code ?? "HTTP_ERROR",
+      envelope?.message,
+    );
     throw new ApiError(
       envelope?.code ?? "HTTP_ERROR",
       envelope?.message ?? `Request failed with status ${response.status}`,

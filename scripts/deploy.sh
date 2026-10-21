@@ -2,6 +2,11 @@
 # scripts/deploy.sh — compose deploy: local, remote (ssh), rollback, logs, status, stop.
 set -Eeuo pipefail
 
+# Paths (compose file, .env, certs/, secrets/, docker/) live at the repo root;
+# anchor everything there so the script works from any cwd.
+ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
+cd "$ROOT"
+
 CMD="${1:-help}"
 [ $# -gt 0 ] && shift
 
