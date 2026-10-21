@@ -417,3 +417,84 @@ describe("self-service registration API", () => {
     db.close();
   });
 });
+
+describe("master password change API", () => {
+  it("rotates the current session, signs out other devices, and honours the new password", async () => {
+    const { app, db } = await harness();
+
+    const bootstrapped = await app.inject({
+      method: "POST",
+      url: "/api/v1/auth/bootstrap",
+      payload: { email: "owner@example.com", masterPassword: MASTER_PASSWORD },
+    });
+    expect(bootstrapped.statusCode).toBe(200);
+    const browserCookie = cookieFrom(bootstrapped);
+
+    // A second login stands in for another signed-in device.
+    const otherDevice = await app.inject({
+      method: "POST",
+      url: "/api/v1/auth/login",
+      payload: { email: "owner@example.com", masterPassword: MASTER_PASSWORD },
+    });
+    expect(otherDevice.statusCode).toBe(200);
+    const otherDeviceCookie = cookieFrom(otherDevice);
+
+    const reauth = await app.inject({
+      method: "POST",
+      url: "/api/v1/auth/verify-password",
+      headers: { cookie: browserCookie },
+      payload: { masterPassword: MASTER_PASSWORD },
+    });
+    expect(reauth.statusCode).toBe(200);
+
+    const changed = await app.inject({
+      method: "POST",
+      url: "/api/v1/auth/change-password",
+      headers: { cookie: browserCookie },
+      payload: {
+        currentPassword: MASTER_PASSWORD,
+        newPassword: "rotated-master-password",
+      },
+    });
+    expect(changed.statusCode).toBe(200);
+
+    // The browser keeps a usable session through the rotated cookie.
+    const rotatedCookie = cookieFrom(changed);
+    expect(rotatedCookie).not.toBe(browserCookie);
+    const me = await app.inject({
+      method: "GET",
+      url: "/api/v1/auth/me",
+      headers: { cookie: rotatedCookie },
+    });
+    expect(me.statusCode).toBe(200);
+    expect(me.json().data.email).toBe("owner@example.com");
+
+    // The other device was signed out.
+    const signedOut = await app.inject({
+      method: "GET",
+      url: "/api/v1/keys",
+      headers: { cookie: otherDeviceCookie },
+    });
+    expect(signedOut.statusCode).toBe(401);
+
+    // The old password no longer signs in; the new one does.
+    const oldPassword = await app.inject({
+      method: "POST",
+      url: "/api/v1/auth/login",
+      payload: { email: "owner@example.com", masterPassword: MASTER_PASSWORD },
+    });
+    expect(oldPassword.statusCode).toBe(401);
+    const newPasswordLogin = await app.inject({
+      method: "POST",
+      url: "/api/v1/auth/login",
+      payload: {
+        email: "owner@example.com",
+        masterPassword: "rotated-master-password",
+      },
+    });
+    expect(newPasswordLogin.statusCode).toBe(200);
+
+    await app.close();
+    db.close();
+  });
+});

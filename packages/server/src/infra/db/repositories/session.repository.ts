@@ -127,14 +127,14 @@ export function revokeAllSessionsForUser(
     exceptSessionId === undefined
       ? db
           .prepare(
-            "UPDATE sessions SET revoked_at = ? WHERE revoked_at IS NULL",
+            "UPDATE sessions SET revoked_at = ? WHERE user_id = ? AND revoked_at IS NULL",
           )
-          .run(new Date().toISOString())
+          .run(new Date().toISOString(), userId)
       : db
           .prepare(
-            "UPDATE sessions SET revoked_at = ? WHERE revoked_at IS NULL AND id != ?",
+            "UPDATE sessions SET revoked_at = ? WHERE user_id = ? AND revoked_at IS NULL AND id != ?",
           )
-          .run(new Date().toISOString(), exceptSessionId);
+          .run(new Date().toISOString(), userId, exceptSessionId);
   return Number(result.changes);
 }
 

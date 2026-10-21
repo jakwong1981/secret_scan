@@ -241,11 +241,12 @@ const authRoutes: FastifyPluginAsync = async (app) => {
       if (!parsed.success)
         throw new ValidationError("Invalid password change payload");
       if (!request.session) throw new ValidationError("No active session");
-      changePassword(app.db, {
+      const newSessionId = changePassword(app.db, {
         sessionId: request.session.id,
         currentPassword: parsed.data.currentPassword,
         newPassword: parsed.data.newPassword,
       });
+      setSessionCookie(reply, newSessionId);
       return ok(reply, { changed: true } as const);
     },
   );

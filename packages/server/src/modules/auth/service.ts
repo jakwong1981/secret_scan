@@ -19,6 +19,7 @@ import {
   grantSensitiveScope,
   hasSensitiveScope,
   isSessionUsable,
+  revokeAllSessionsForUser,
   revokeSession,
   rotateSession,
   touchSession,
@@ -344,7 +345,7 @@ function bootstrapFromGoogle(db: Db, email: string): UserRow {
 export function changePassword(
   db: Db,
   input: { sessionId: string; currentPassword: string; newPassword: string },
-): void {
+): string {
   const session = findSessionById(db, input.sessionId);
   if (!session) throw new UnauthenticatedError();
   const user = findUserById(db, session.user_id);
@@ -360,9 +361,13 @@ export function changePassword(
     );
   }
   updatePasswordHash(db, user.id, hashPassword(input.newPassword));
-  revokeSession(db, session.id);
-  rotateSession(db, session.id);
+  // Rotate before revoking anything: the copy must inherit a live row so the
+  // rotated session stays usable, then every other session of this user is
+  // revoked while other accounts' sessions are left alone.
+  const newSessionId = rotateSession(db, session.id);
+  revokeAllSessionsForUser(db, user.id, newSessionId);
   logger.info({ userId: user.id }, "master password changed, sessions rotated");
+  return newSessionId;
 }
 
 export function auditAuth(

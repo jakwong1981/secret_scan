@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { api } from "../api/client";
 import {
@@ -44,6 +44,14 @@ export function SettingsPage() {
   const [newPassword, setNewPassword] = useState("");
   const [message, setMessage] = useState<string | null>(null);
 
+  // Hydrate the editable fields from the loaded settings so saving sends
+  // exactly what the inputs show instead of wiping untouched values.
+  useEffect(() => {
+    if (!settings.data) return;
+    setEmails(settings.data.googleAllowedEmails.join(", "));
+    setVerifyOptIn(settings.data.verifyKeysOptIn);
+  }, [settings.data]);
+
   const save = useMutation({
     mutationFn: async () => {
       if (!reauth.hasScope()) await reauth.confirm(currentPassword);
@@ -83,8 +91,19 @@ export function SettingsPage() {
 
   const view: SettingsView | undefined = settings.data;
   if (!view) {
-    return <Alert tone="error">Settings could not be loaded.</Alert>;
+    return (
+      <Alert tone="error">
+        Settings could not be loaded.
+        {settings.error instanceof Error && settings.error.message !== ""
+          ? ` ${settings.error.message}`
+          : ""}
+      </Alert>
+    );
   }
+
+  const dirty =
+    emails !== view.googleAllowedEmails.join(", ") ||
+    verifyOptIn !== view.verifyKeysOptIn;
 
   return (
     <div className="space-y-6">
@@ -128,14 +147,14 @@ export function SettingsPage() {
         <div className="mt-3 space-y-4">
           <Input
             label="Google allow-list (comma separated owner emails)"
-            value={emails === "" ? view.googleAllowedEmails.join(", ") : emails}
+            value={emails}
             onChange={setEmails}
             placeholder="owner@example.com"
           />
           <label className="flex items-center gap-2 text-sm text-ink">
             <input
               type="checkbox"
-              checked={verifyOptIn || view.verifyKeysOptIn}
+              checked={verifyOptIn}
               onChange={(event) => setVerifyOptIn(event.target.checked)}
               className="h-4 w-4 rounded border-line"
             />
@@ -150,7 +169,10 @@ export function SettingsPage() {
               type="password"
               autoComplete="current-password"
             />
-            <Button onClick={() => save.mutate()} disabled={save.isPending}>
+            <Button
+              onClick={() => save.mutate()}
+              disabled={save.isPending || !dirty}
+            >
               {save.isPending ? "Saving…" : "Save settings"}
             </Button>
           </div>
